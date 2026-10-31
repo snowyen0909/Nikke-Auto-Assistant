@@ -118,7 +118,8 @@ class CaptureService : Service() {
      // Do not require the old white-panel pixel threshold: it rejects
      // legitimate 14:9 portrait and landscape layouts.
      val battleText=all.contains("STAGE") || all.contains("戰力") || all.contains("战力")
-     val battleScreen=battleText && (quick!=null || enter!=null)
+     val blueEnter=if(Settings.battle && battleText) BattleDetector.findBlueEnterButton(bitmap) else null
+     val battleScreen=battleText && (quick!=null || enter!=null || blueEnter!=null)
      val quickState=if(quick!=null)BattleDetector.stateNear(bitmap,quick.second,quick.third) else BattleDetector.ColorState.UNKNOWN
      val enterState=if(enter!=null)BattleDetector.stateNear(bitmap,enter.second,enter.third) else BattleDetector.ColorState.UNKNOWN
      val storyScreen=skip!=null || (all.contains("AUTO") && all.contains("LOG"))
@@ -132,7 +133,9 @@ class CaptureService : Service() {
       Settings.skip && next!=null -> Triple("result-next",w*.50f,h*.78f)
       Settings.battle && battleScreen && quick!=null && quickState==BattleDetector.ColorState.ORANGE ->
        Triple("quick",quick.second,quick.third)
-      Settings.battle && battleScreen && enter!=null && (enterState==BattleDetector.ColorState.BLUE || enterState==BattleDetector.ColorState.UNKNOWN) ->
+      Settings.battle && battleScreen && blueEnter!=null ->
+       Triple("enter",blueEnter.x,blueEnter.y)
+      Settings.battle && battleScreen && enter!=null && enterState==BattleDetector.ColorState.BLUE ->
        Triple("enter",enter.second,enter.third)
       Settings.map && outdoorMap && monster!=null && monster.score>=9 ->
        Triple("map-monster",monster.x,monster.y)
@@ -157,7 +160,7 @@ class CaptureService : Service() {
       }
      } else {
       stable=0;lastTarget=""
-      status("分析中：${Settings.frames} 張；地圖=${outdoorMap} 紅圈=${monster?.score ?: 0} 戰鬥=${battleScreen} OCR: ${all.take(25)}")
+      status("分析中：${Settings.frames} 張；地圖=${outdoorMap} 紅圈=${monster?.score ?: 0} 戰鬥=${battleScreen} 藍鍵=${blueEnter!=null} OCR: ${all.take(25)}")
       // Map monster detection is not implemented yet. Do not patrol without a reliable map classifier.
       noTargetSince=0L
      }
