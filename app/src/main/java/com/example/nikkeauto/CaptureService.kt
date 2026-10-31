@@ -30,6 +30,8 @@ class CaptureService : Service() {
  private var patrolStep = 0
  private var lastNotify = 0L
  private val notificationChannel = "capture"
+ private val ACTION_PAUSE="com.example.nikkeauto.PAUSE"
+ private val ACTION_RESUME="com.example.nikkeauto.RESUME"
 
  override fun onBind(intent: Intent?): IBinder? = null
 
@@ -42,12 +44,28 @@ class CaptureService : Service() {
    mgr.notify(1, notification(s))
   }
  }
- private fun notification(s: String): Notification =
-  Notification.Builder(this, notificationChannel)
+ private fun notification(s: String): Notification {
+  val action=if(Settings.paused)ACTION_RESUME else ACTION_PAUSE
+  val label=if(Settings.paused)"繼續" else "暫停"
+  val control=Intent(this,CaptureService::class.java).setAction(action)
+  val pending=PendingIntent.getService(this,if(Settings.paused)2 else 1,control,
+   PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+  return Notification.Builder(this, notificationChannel)
    .setSmallIcon(android.R.drawable.ic_menu_view)
    .setContentTitle("NIKKE Auto Assistant")
    .setContentText(s)
-   .setOngoing(true).build()
+   .setOngoing(true)
+   .addAction(android.R.drawable.ic_media_pause,label,pending)
+   .build()
+ }
+ private fun setPaused(paused:Boolean) {
+  Settings.paused=paused
+  lastTarget=""
+  stable=0
+  Settings.status=if(paused)"已暫停（螢幕擷取保持啟用）" else "已繼續自動化"
+  val mgr=getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+  mgr.notify(1,notification(Settings.status))
+ }
 
  override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
   val mgr = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
@@ -74,7 +92,7 @@ class CaptureService : Service() {
   handler.post(object:Runnable {
    override fun run() {
     if (!Settings.running) {stopSelf();return}
-    capture(w,h)
+    if(!Settings.paused)capture(w,h)
     handler.postDelayed(this,700)
    }
   })
@@ -175,7 +193,7 @@ class CaptureService : Service() {
       status("目標 ${target.first} @(${target.second.toInt()},${target.third.toInt()}) 確認 ${stable}/2")
       val cooldown=when(target.first) {"map-monster"->6000L;"skip-visible"->1200L;else->1500L}
       val requiredFrames=if(target.first=="skip-visible")1 else 2
-      if(stable>=requiredFrames && now-lastTap>=cooldown) {
+      if(!Settings.paused && Settings.running && stable>=requiredFrames && now-lastTap>=cooldown) {
        val tap=Settings.tap
        if(tap!=null) {
         if(tap.click(target.second,target.third)) {
@@ -228,7 +246,7 @@ class CaptureService : Service() {
  }
 
  override fun onDestroy(){
-  Settings.running=false;Settings.status="已停止"
+  Settings.running=false;Settings.paused=false;Settings.status="已停止"
   display?.release();reader?.close();projection?.stop();recognizer.close()
   super.onDestroy()
  }
