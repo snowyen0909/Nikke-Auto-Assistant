@@ -115,7 +115,8 @@ class CaptureService : Service() {
      val quick=lines.firstOrNull { it.first.replace(" ","").contains("快速戰鬥") || it.first.replace(" ","").contains("快速战斗") }
      val enter=lines.firstOrNull { it.first.replace(" ","").contains("進入戰鬥") || it.first.replace(" ","").contains("进入战斗") }
      val detected=if(Settings.battle) BattleDetector.detect(bitmap) else null
-     val battleScreen=(quick!=null || enter!=null || detected?.enter!=null) && (all.contains("STAGE") || all.contains("戰力") || all.contains("战力") || all.contains("WEAKPOINT") || all.contains("EFFECTIVERANGE"))
+     val battleText=all.contains("STAGE") || all.contains("戰力") || all.contains("战力") || all.contains("WEAKPOINT") || all.contains("EFFECTIVERANGE")
+     val battleScreen=(quick!=null || enter!=null || detected?.enter!=null) && (battleText || isBattlePanel(bitmap))
      val target:Triple<String,Float,Float>?=when {
       Settings.skip && popup && next!=null -> Triple("upgrade-popup",w*.50f,h*.74f)
       Settings.skip && popup -> Triple("upgrade-popup",w*.50f,h*.76f)
@@ -135,9 +136,10 @@ class CaptureService : Service() {
       if(stable>=2 && now-lastTap>=1500L) {
        val tap=Settings.tap
        if(tap!=null) {
-        tap.click(target.second,target.third)
-        Settings.taps++
-        status("已送出 ${target.first} 點擊，共 ${Settings.taps} 次")
+        if(tap.click(target.second,target.third)) {
+         Settings.taps++
+         status("已送出 ${target.first} 點擊，共 ${Settings.taps} 次")
+        }
        } else status("無障礙服務未連接：請檢查系統設定")
        lastTap=now
        stable=0
@@ -154,6 +156,20 @@ class CaptureService : Service() {
    .addOnCompleteListener {busy=false;bitmap.recycle()}
  }
 
+ private fun isBattlePanel(b:Bitmap):Boolean {
+  // White stage-detail panel at the bottom, plus blue enter button.
+  // Do not use blue-button detection alone on the exploration map.
+  val w=b.width;val h=b.height
+  var bright=0;var count=0
+  for(iy in 72..90 step 3) for(ix in 8..45 step 4) {
+   val x=(w*ix/100).coerceIn(0,w-1)
+   val y=(h*iy/100).coerceIn(0,h-1)
+   val c=b.getPixel(x,y)
+   if(Color.red(c)>215 && Color.green(c)>215 && Color.blue(c)>215)bright++
+   count++
+  }
+  return count>0 && bright.toFloat()/count>.72f
+ }
  private fun isOrangeNear(bitmap:Bitmap,x:Int,y:Int):Boolean {
   var hits=0;var total=0
   val rx=(bitmap.width*.10f).toInt().coerceAtLeast(20)
