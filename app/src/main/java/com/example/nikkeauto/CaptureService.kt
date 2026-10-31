@@ -32,7 +32,7 @@ class CaptureService:Service(){
  if(data==null){stopSelf();return START_NOT_STICKY}
  val dm=resources.displayMetrics;val w=dm.widthPixels;val h=dm.heightPixels
  val mgr=getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
- projection=mgr.getMediaProjection(intent.getIntExtra("resultCode",Activity.RESULT_CANCELED),data)
+ projection=mgr.getMediaProjection(intent?.getIntExtra("resultCode",Activity.RESULT_CANCELED) ?: Activity.RESULT_CANCELED,data)
  projection?.registerCallback(object:android.media.projection.MediaProjection.Callback(){override fun onStop(){stopSelf()}},handler)
  reader=ImageReader.newInstance(w,h,PixelFormat.RGBA_8888,2)
  projection?.createVirtualDisplay("nikke-capture",w,h,dm.densityDpi,DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,reader!!.surface,null,handler)
