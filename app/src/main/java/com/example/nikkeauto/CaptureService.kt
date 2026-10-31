@@ -112,7 +112,7 @@ class CaptureService : Service() {
       (all.contains("LOG") || all.contains("SKIP"))
      val skipFallback=storyHud && skip==null
      val skipX=w*.875f
-     val skipY=h*.025f
+     val skipY=h*.045f
      val next=lines.firstOrNull {
       val t=it.first.replace(" ","")
       t.contains("點擊任意處") || t.contains("点击任意处") || t.contains("進行下一步") || t.contains("进行下一步")
