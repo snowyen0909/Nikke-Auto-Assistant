@@ -29,8 +29,8 @@ class MainActivity:Activity(){
   root.addView(TextView(this).apply{text="NIKKE Auto Assistant";textSize=24f})
   toggle("自動跳過劇情 / 結算 / 升級彈窗",Settings.skip){Settings.skip=it}
   toggle("自動戰鬥確認",Settings.battle){Settings.battle=it}
-  toggle("地圖自動尋敵與導航（尚未實作）",Settings.map){Settings.map=it}
-  toggle("地圖巡弋 / 縮放（暫停，避免誤觸）",Settings.patrol){Settings.patrol=it}
+  toggle("地圖尋敵（紅圈 / 驚嘆號 / Boss）",Settings.map){Settings.map=it}
+  toggle("自動巡弋 / 縮放（實驗性，預設關閉）",Settings.patrol){Settings.patrol=it}
   root.addView(Button(this).apply{text="1. 開啟無障礙服務";setOnClickListener{startActivity(Intent(AndroidSettings.ACTION_ACCESSIBILITY_SETTINGS))}})
   root.addView(Button(this).apply{text="2. 授權完整螢幕並啟動";setOnClickListener{
    if(Settings.tap==null){Toast.makeText(this@MainActivity,"請先開啟無障礙服務",Toast.LENGTH_LONG).show();return@setOnClickListener}
@@ -64,7 +64,7 @@ class MainActivity:Activity(){
   }})
   liveStatus=TextView(this).apply{textSize=15f;setPadding(0,20,0,0)}
   root.addView(liveStatus)
-  root.addView(TextView(this).apply{text="授權時請選擇「整個螢幕」，然後切換到遊戲。地圖辨識仍在開發，請勿依賴巡弋功能。"})
+  root.addView(TextView(this).apply{text="授權時請選擇「整個螢幕」，然後切換到遊戲。地圖尋敵與巡弋為實驗性功能。可透過通知列暫停／繼續；停止後須重新授權截圖。"})
   setContentView(ScrollView(this).apply{addView(root)})
   handler.post(refresh)
  }
