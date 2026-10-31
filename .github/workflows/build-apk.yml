@@ -1,4 +1,4 @@
-name: Build Android APK
+name: Build Android APK (Modern + Classic)
 on:
   workflow_dispatch:
   push:
@@ -14,10 +14,17 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - name: Build Debug APK
-        run: gradle --no-daemon :app:assembleDebug --stacktrace
-      - uses: actions/upload-artifact@v4
+      - name: Build Both UI Versions
+        run: gradle --no-daemon :app:assembleModernDebug :app:assembleClassicDebug --stacktrace
+      - name: Modern Tactical UI APK
+        uses: actions/upload-artifact@v4
         with:
-          name: NikkeAutoAssistant-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: NIKKE-Automation-Modern-APK
+          path: app/build/outputs/apk/modern/debug/app-modern-debug.apk
+          if-no-files-found: error
+      - name: Original Classic UI APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: NIKKE-Automation-Classic-APK
+          path: app/build/outputs/apk/classic/debug/app-classic-debug.apk
           if-no-files-found: error
