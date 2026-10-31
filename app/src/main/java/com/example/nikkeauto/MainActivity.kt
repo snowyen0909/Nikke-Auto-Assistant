@@ -56,19 +56,6 @@ OCR: ${Settings.lastRecognized.take(95)}""".trimIndent()
    browser.loadUrl("file:///android_asset/nikke-auto-assistant.html")
    handler.post(refresh)
    return
-   /* Old native Modern UI kept for reference but not used.
-   modernStatus=ModernUi.create(this,
-    permissions={startActivity(Intent(AndroidSettings.ACTION_ACCESSIBILITY_SETTINGS))},
-    capture={askForCapture()},
-    test={testClick()},
-    pause={setPause(true)},
-    resume={if(Settings.running)setPause(false) else askForCapture()},
-    stop={Settings.running=false;Settings.paused=false;stopService(Intent(this,CaptureService::class.java))},
-    copyLogs={copyLogs()},clearLogs={EventLog.clear(this)}
-   )
-   handler.post(refresh)
-   return
-   */
   }
   val root=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(32,42,32,28)}
   fun toggle(title:String, initial:Boolean, change:(Boolean)->Unit){
