@@ -114,8 +114,11 @@ class CaptureService : Service() {
      val popup=(all.contains("OUTPOSTDEFENSE") || all.contains("基地防禦") || all.contains("基地防御") || all.contains("升級獎勵") || all.contains("升级奖励")) && hasResult
      val quick=lines.firstOrNull { it.first.replace(" ","").contains("快速戰鬥") || it.first.replace(" ","").contains("快速战斗") }
      val enter=lines.firstOrNull { it.first.replace(" ","").contains("進入戰鬥") || it.first.replace(" ","").contains("进入战斗") }
+     // Require stage heading and at least one battle action label.
+     // Do not require the old white-panel pixel threshold: it rejects
+     // legitimate 14:9 portrait and landscape layouts.
      val battleText=all.contains("STAGE") || all.contains("戰力") || all.contains("战力")
-     val battleScreen=battleText && isBattlePanel(bitmap) && (quick!=null || enter!=null)
+     val battleScreen=battleText && (quick!=null || enter!=null)
      val quickState=if(quick!=null)BattleDetector.stateNear(bitmap,quick.second,quick.third) else BattleDetector.ColorState.UNKNOWN
      val enterState=if(enter!=null)BattleDetector.stateNear(bitmap,enter.second,enter.third) else BattleDetector.ColorState.UNKNOWN
      val target:Triple<String,Float,Float>?=when {
@@ -124,7 +127,7 @@ class CaptureService : Service() {
       Settings.skip && next!=null -> Triple("result-next",w*.50f,h*.78f)
       Settings.battle && battleScreen && quick!=null && quickState==BattleDetector.ColorState.ORANGE ->
        Triple("quick",quick.second,quick.third)
-      Settings.battle && battleScreen && enter!=null && enterState==BattleDetector.ColorState.BLUE ->
+      Settings.battle && battleScreen && enter!=null && (enterState==BattleDetector.ColorState.BLUE || enterState==BattleDetector.ColorState.UNKNOWN) ->
        Triple("enter",enter.second,enter.third)
       else -> null
      }
@@ -146,7 +149,7 @@ class CaptureService : Service() {
       }
      } else {
       stable=0;lastTarget=""
-      status("分析中：${Settings.frames} 張；OCR: ${all.take(45)}")
+      status("分析中：${Settings.frames} 張；戰鬥=${battleScreen} 快速=${quickState} 進入=${enterState} OCR: ${all.take(26)}")
       // Map monster detection is not implemented yet. Do not patrol without a reliable map classifier.
       noTargetSince=0L
      }
