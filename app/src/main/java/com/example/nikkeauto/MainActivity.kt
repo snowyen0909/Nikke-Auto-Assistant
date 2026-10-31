@@ -37,6 +37,15 @@ class MainActivity:Activity(){
    val mgr=getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
    startActivityForResult(mgr.createScreenCaptureIntent(),captureRequest)
   }})
+  root.addView(Button(this).apply{text="測試無障礙點擊（在本畫面測試）";setOnClickListener{
+   val tap=Settings.tap
+   if(tap==null) Toast.makeText(this@MainActivity,"無障礙服務沒有連接",Toast.LENGTH_LONG).show()
+   else {
+    val dm=resources.displayMetrics
+    tap.click(dm.widthPixels*.50f,dm.heightPixels*.50f)
+    Settings.status="已要求測試點擊，請查看是否回報執行成功"
+   }
+  }})
   root.addView(Button(this).apply{text="停止自動化";setOnClickListener{
    Settings.running=false;stopService(Intent(this@MainActivity,CaptureService::class.java))
   }})
