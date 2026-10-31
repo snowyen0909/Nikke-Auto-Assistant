@@ -15,7 +15,7 @@ class MainActivity:Activity(){
  private val refresh=object:Runnable {
   override fun run(){
    if(::liveStatus.isInitialized){
-    liveStatus.text="運行狀態：${Settings.status}\n無障礙服務：${if(Settings.tap!=null)"已連接" else "未連接"}\n已分析畫面：${Settings.frames}\n已送出點擊：${Settings.taps}\n辨識文字：${Settings.lastRecognized.take(90)}"
+    liveStatus.text="控制：${if(!Settings.running)"已停止" else if(Settings.paused)"已暫停" else "執行中"}\\n運行狀態：${Settings.status}\n無障礙服務：${if(Settings.tap!=null)"已連接" else "未連接"}\n已分析畫面：${Settings.frames}\n已送出點擊：${Settings.taps}\n辨識文字：${Settings.lastRecognized.take(90)}"
    }
    handler.postDelayed(this,900)
   }
@@ -46,8 +46,21 @@ class MainActivity:Activity(){
     Settings.status="已要求測試點擊，請查看是否回報執行成功"
    }
   }})
+  root.addView(Button(this).apply{text="暫停自動化";setOnClickListener{
+   if(Settings.running){
+    Settings.paused=true
+    Settings.status="已暫停（不用重新授權截圖）"
+    startService(Intent(this@MainActivity,CaptureService::class.java).setAction("com.example.nikkeauto.PAUSE"))
+   }else Toast.makeText(this@MainActivity,"請先授權完整螢幕並啟動",Toast.LENGTH_SHORT).show()
+  }})
+  root.addView(Button(this).apply{text="繼續 / 開始";setOnClickListener{
+   if(Settings.running){
+    Settings.paused=false
+    startService(Intent(this@MainActivity,CaptureService::class.java).setAction("com.example.nikkeauto.RESUME"))
+   }else Toast.makeText(this@MainActivity,"請按「授權完整螢幕並啟動」",Toast.LENGTH_LONG).show()
+  }})
   root.addView(Button(this).apply{text="停止自動化";setOnClickListener{
-   Settings.running=false;stopService(Intent(this@MainActivity,CaptureService::class.java))
+   Settings.running=false;Settings.paused=false;stopService(Intent(this@MainActivity,CaptureService::class.java))
   }})
   liveStatus=TextView(this).apply{textSize=15f;setPadding(0,20,0,0)}
   root.addView(liveStatus)
@@ -60,7 +73,7 @@ class MainActivity:Activity(){
  override fun onActivityResult(requestCode:Int,resultCode:Int,data:Intent?){
   super.onActivityResult(requestCode,resultCode,data)
   if(requestCode==captureRequest && resultCode==RESULT_OK && data!=null){
-   Settings.frames=0;Settings.taps=0;Settings.running=true;Settings.status="初始化中"
+   Settings.frames=0;Settings.taps=0;Settings.paused=false;Settings.running=true;Settings.status="初始化中"
    val serviceIntent=Intent(this,CaptureService::class.java)
     .putExtra("resultCode",resultCode).putExtra("resultData",data)
    startForegroundService(serviceIntent)
