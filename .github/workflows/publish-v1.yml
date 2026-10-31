@@ -1,0 +1,71 @@
+name: Publish v1.0.0 (881a23b)
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/publish-v1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-nikke-v1
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out exact first-version source
+        uses: actions/checkout@v4
+        with:
+          ref: 881a23b2bac40979c09c9373d5456838d4fbd0cc
+          persist-credentials: false
+      - name: Configure Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Build original Modern and Classic APKs
+        run: gradle --no-daemon :app:assembleModernDebug :app:assembleClassicDebug --stacktrace
+      - name: Prepare clearly named packages
+        run: |
+          mkdir -p release
+          cp app/build/outputs/apk/modern/debug/app-modern-debug.apk release/NIKKE-Auto-Assistant-v1.0.0-Modern.apk
+          cp app/build/outputs/apk/classic/debug/app-classic-debug.apk release/NIKKE-Auto-Assistant-v1.0.0-Classic.apk
+          cd release
+          sha256sum *.apk > SHA256SUMS.txt
+      - name: Publish GitHub Release for historical commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view v1.0.0 --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "Release v1.0.0 already exists; not overwriting immutable version."
+            exit 0
+          fi
+          gh release create v1.0.0 release/*.apk release/SHA256SUMS.txt \
+            --repo "${{ github.repository }}" \
+            --target 881a23b2bac40979c09c9373d5456838d4fbd0cc \
+            --title "NIKKE Auto Assistant v1.0.0 — First Public Release" \
+            --notes-file /dev/stdin <<'NOTES'
+          ## NIKKE Auto Assistant — 第一版公開發布
+
+          此版本**固定採用歷史 Commit `881a23b2bac40979c09c9373d5456838d4fbd0cc`**，不是目前 main 的程式碼。
+
+          ### APK 下載
+          - **Modern**：`NIKKE-Auto-Assistant-v1.0.0-Modern.apk`（原生科技風 UI）
+          - **Classic**：`NIKKE-Auto-Assistant-v1.0.0-Classic.apk`（簡易原生 UI）
+          - **SHA256SUMS.txt**：下載檔案雜湊檢查碼
+
+          ### 功能
+          - 劇情 SKIP、部分結算／彈窗點擊
+          - 戰鬥準備：橘色快速戰鬥優先，否則藍色進入戰鬥
+          - 野外怪物與導航辨識（實驗性）
+          - 開始／暫停／繼續與操作日誌
+
+          ### 注意
+          - 此為**第一次公開版**，APK 使用 Android **debug 簽章**，不是正式發行簽章；可能需要先移除不同簽章的既有安裝版本。
+          - 尚未完成全機型穩定性驗證，影像辨識可能漏判或誤點。
+          - 使用前請確認 Android 無障礙及整個螢幕的擷取授權；請自行留意遊戲服務條款。
+          NOTES
