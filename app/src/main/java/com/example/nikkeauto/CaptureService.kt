@@ -143,7 +143,8 @@ class CaptureService : Service() {
       if(lastTarget==target.first)stable++ else {lastTarget=target.first;stable=1}
       val now=SystemClock.elapsedRealtime()
       status("目標 ${target.first} @(${target.second.toInt()},${target.third.toInt()}) 確認 ${stable}/2")
-      if(stable>=2 && now-lastTap>=1500L) {
+      val cooldown=if(target.first=="map-monster")6000L else 1500L
+      if(stable>=2 && now-lastTap>=cooldown) {
        val tap=Settings.tap
        if(tap!=null) {
         if(tap.click(target.second,target.third)) {
