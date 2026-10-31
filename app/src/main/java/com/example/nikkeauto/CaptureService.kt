@@ -118,7 +118,8 @@ class CaptureService : Service() {
      val storyHud=(all.contains("HIDE") && all.contains("AUTO") &&
       (all.contains("LOG") || all.contains("SKIP"))) ||
       (skipToolbarLine!=null && all.contains("AUTO"))
-     val skipFallback=storyHud && skip==null
+     val skipIcon=if(Settings.skip) SkipDetector.find(bitmap) else null
+     val skipFallback=false // Never tap assumed toolbar coordinates: previously hit AUTO
      val skipX=w*.875f
      // Reuse the actual toolbar row if OCR grouped the labels; fixed fallback
      // must stay near the TOP edge, never at the center of the AUTO label.
@@ -147,8 +148,8 @@ class CaptureService : Service() {
      val monster=if(Settings.map && outdoorMap)MapDetector.redRingMonster(bitmap) else null
      val target:Triple<String,Float,Float>?=when {
       Settings.skip && popup -> Triple("upgrade-popup",w*.50f,h*.76f)
+      Settings.skip && skipIcon!=null -> Triple("skip-image",skipIcon.x,skipIcon.y)
       Settings.skip && skip!=null -> Triple("skip",skip.second,skip.third)
-      Settings.skip && skipFallback -> Triple("skip-fallback",skipX,skipY)
       Settings.skip && next!=null -> Triple("result-next",w*.50f,h*.78f)
       Settings.battle && battleScreen && orangeQuick!=null ->
        Triple("quick",orangeQuick.x,orangeQuick.y)
@@ -181,7 +182,7 @@ class CaptureService : Service() {
       }
      } else {
       stable=0;lastTarget=""
-      status("分析中：${Settings.frames} 張；劇情=${storyHud} 地圖=${outdoorMap} 紅圈=${monster?.score ?: 0} 戰鬥=${battleScreen} 橘鍵=${orangeQuick!=null} 藍鍵=${blueEnter!=null} OCR: ${all.take(25)}")
+      status("分析中：${Settings.frames} 張；劇情=${storyHud} SKIP圖=${skipIcon?.score ?: 0f} 地圖=${outdoorMap} 紅圈=${monster?.score ?: 0} 戰鬥=${battleScreen} 橘鍵=${orangeQuick!=null} 藍鍵=${blueEnter!=null} OCR: ${all.take(25)}")
       // Map monster detection is not implemented yet. Do not patrol without a reliable map classifier.
       noTargetSince=0L
      }
