@@ -121,6 +121,11 @@ class CaptureService : Service() {
      val battleScreen=battleText && (quick!=null || enter!=null)
      val quickState=if(quick!=null)BattleDetector.stateNear(bitmap,quick.second,quick.third) else BattleDetector.ColorState.UNKNOWN
      val enterState=if(enter!=null)BattleDetector.stateNear(bitmap,enter.second,enter.third) else BattleDetector.ColorState.UNKNOWN
+     val storyScreen=skip!=null || (all.contains("AUTO") && all.contains("LOG"))
+     val resultScreen=hasResult || popup
+     val outdoorMap=!battleScreen && !storyScreen && !resultScreen &&
+      (all.contains("野外") || all.contains("CURRENTAREA") || all.contains("NORMAL"))
+     val monster=if(Settings.map && outdoorMap)MapDetector.redRingMonster(bitmap) else null
      val target:Triple<String,Float,Float>?=when {
       Settings.skip && popup -> Triple("upgrade-popup",w*.50f,h*.76f)
       Settings.skip && skip!=null -> Triple("skip",skip.second,skip.third)
@@ -129,6 +134,8 @@ class CaptureService : Service() {
        Triple("quick",quick.second,quick.third)
       Settings.battle && battleScreen && enter!=null && (enterState==BattleDetector.ColorState.BLUE || enterState==BattleDetector.ColorState.UNKNOWN) ->
        Triple("enter",enter.second,enter.third)
+      Settings.map && outdoorMap && monster!=null && monster.score>=9 ->
+       Triple("map-monster",monster.x,monster.y)
       else -> null
      }
      if(target!=null) {
@@ -149,7 +156,7 @@ class CaptureService : Service() {
       }
      } else {
       stable=0;lastTarget=""
-      status("分析中：${Settings.frames} 張；戰鬥=${battleScreen} 快速=${quickState} 進入=${enterState} OCR: ${all.take(26)}")
+      status("分析中：${Settings.frames} 張；地圖=${outdoorMap} 紅圈=${monster?.score ?: 0} 戰鬥=${battleScreen} OCR: ${all.take(25)}")
       // Map monster detection is not implemented yet. Do not patrol without a reliable map classifier.
       noTargetSince=0L
      }
