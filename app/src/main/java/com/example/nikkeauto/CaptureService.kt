@@ -260,4 +260,3 @@ class CaptureService : Service() {
     }
     .addOnFailureListener {status("OCR 失敗: ${it.javaClass.simpleName}")}
 
-
