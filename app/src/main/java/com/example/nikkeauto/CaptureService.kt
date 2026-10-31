@@ -189,7 +189,7 @@ class CaptureService : Service() {
      val idleMap=Settings.map && outdoorMap && monster==null && nav==null && boss==null
      val nowMap=SystemClock.elapsedRealtime()
      val target:Triple<String,Float,Float>?=when {
-      failed && !failureHandled -> Triple("failed-return",w*.16f,h*.913f)
+      failed && !failureHandled -> Triple("failed-return",w*.16f,h*.943f)
       Settings.skip && popup -> Triple("upgrade-popup",w*.50f,h*.76f)
       Settings.skip && visibleSkip!=null -> Triple("skip-visible",skipTapX,skipTapY)
       Settings.skip && skipIcon!=null -> Triple("skip-image",skipIcon.x,skipIcon.y)
