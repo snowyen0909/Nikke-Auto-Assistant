@@ -16,11 +16,20 @@ class MainActivity:Activity(){
  private val refresh=object:Runnable {
   override fun run(){
    if(::liveStatus.isInitialized){
-    liveStatus.text="控制：${if(!Settings.running)"已停止" else if(Settings.paused)"已暫停" else "執行中"}\\n運行狀態：${Settings.status}\n無障礙服務：${if(Settings.tap!=null)"已連接" else "未連接"}\n已分析畫面：${Settings.frames}\n已送出點擊：${Settings.taps}\n辨識文字：${Settings.lastRecognized.take(90)}"
+    liveStatus.text="""控制：${if(!Settings.running)"已停止" else if(Settings.paused)"已暫停" else "執行中"}
+運行狀態：${Settings.status}
+無障礙服務：${if(Settings.tap!=null)"已連接" else "未連接"}
+已分析畫面：${Settings.frames}
+已送出點擊：${Settings.taps}
+辨識文字：${Settings.lastRecognized.take(90)}""".trimIndent()
    }
    modernStatus?.let {
     it.status.text=if(!Settings.running)"● 已停止" else if(Settings.paused)"● 已暫停" else "● 巡航中"
-    it.details.text="服務：${if(Settings.tap!=null)"已連線" else "未連線"} | 分析：${Settings.frames} 張 | 點擊：${Settings.taps} 次\n\n${Settings.status}\n\nOCR: ${Settings.lastRecognized.take(95)}"
+    it.details.text="""服務：${if(Settings.tap!=null)"已連線" else "未連線"} | 分析：${Settings.frames} 張 | 點擊：${Settings.taps} 次
+
+${Settings.status}
+
+OCR: ${Settings.lastRecognized.take(95)}""".trimIndent()
    }
    handler.postDelayed(this,900)
   }
