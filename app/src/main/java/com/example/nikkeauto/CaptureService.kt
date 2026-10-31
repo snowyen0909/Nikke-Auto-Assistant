@@ -105,7 +105,14 @@ class CaptureService : Service() {
      }
      val all=lines.joinToString(" ") { it.first }.replace(" ","").uppercase()
      Settings.lastRecognized=all.take(110)
-     val skip=lines.firstOrNull { it.first.contains("SKIP",true) && it.second>w*.48f && it.third<h*.22f }
+     val skip=lines.firstOrNull { it.first.contains("SKIP",true) && it.second>w*.48f && it.third<h*.16f }
+     // ML Kit Chinese OCR may miss small Latin "SKIP". Require multiple
+     // independent story HUD labels before using the fixed top-right fallback.
+     val storyHud=all.contains("HIDE") && all.contains("AUTO") &&
+      (all.contains("LOG") || all.contains("SKIP"))
+     val skipFallback=storyHud && skip==null
+     val skipX=w*.875f
+     val skipY=h*.025f
      val next=lines.firstOrNull {
       val t=it.first.replace(" ","")
       t.contains("點擊任意處") || t.contains("点击任意处") || t.contains("進行下一步") || t.contains("进行下一步")
@@ -122,7 +129,7 @@ class CaptureService : Service() {
      val battleScreen=battleText && (quick!=null || enter!=null || blueEnter!=null)
      val quickState=if(quick!=null)BattleDetector.stateNear(bitmap,quick.second,quick.third) else BattleDetector.ColorState.UNKNOWN
      val enterState=if(enter!=null)BattleDetector.stateNear(bitmap,enter.second,enter.third) else BattleDetector.ColorState.UNKNOWN
-     val storyScreen=skip!=null || (all.contains("AUTO") && all.contains("LOG"))
+     val storyScreen=skip!=null || storyHud
      val resultScreen=hasResult || popup
      val outdoorMap=!battleScreen && !storyScreen && !resultScreen &&
       (all.contains("野外") || all.contains("CURRENTAREA") || all.contains("NORMAL"))
@@ -130,6 +137,7 @@ class CaptureService : Service() {
      val target:Triple<String,Float,Float>?=when {
       Settings.skip && popup -> Triple("upgrade-popup",w*.50f,h*.76f)
       Settings.skip && skip!=null -> Triple("skip",skip.second,skip.third)
+      Settings.skip && skipFallback -> Triple("skip-fallback",skipX,skipY)
       Settings.skip && next!=null -> Triple("result-next",w*.50f,h*.78f)
       Settings.battle && battleScreen && quick!=null && quickState==BattleDetector.ColorState.ORANGE ->
        Triple("quick",quick.second,quick.third)
@@ -160,7 +168,7 @@ class CaptureService : Service() {
       }
      } else {
       stable=0;lastTarget=""
-      status("分析中：${Settings.frames} 張；地圖=${outdoorMap} 紅圈=${monster?.score ?: 0} 戰鬥=${battleScreen} 藍鍵=${blueEnter!=null} OCR: ${all.take(25)}")
+      status("分析中：${Settings.frames} 張；劇情=${storyHud} 地圖=${outdoorMap} 紅圈=${monster?.score ?: 0} 戰鬥=${battleScreen} 藍鍵=${blueEnter!=null} OCR: ${all.take(25)}")
       // Map monster detection is not implemented yet. Do not patrol without a reliable map classifier.
       noTargetSince=0L
      }
