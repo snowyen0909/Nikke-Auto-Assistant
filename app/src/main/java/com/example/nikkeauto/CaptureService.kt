@@ -29,6 +29,9 @@ class CaptureService : Service() {
  private var noTargetSince = 0L
  private var patrolStep = 0
  private var lastNotify = 0L
+ private var lastLoggedTarget = ""
+ private var lastLoggedAt = 0L
+ private var failureHandled = false
  private val notificationChannel = "capture"
  private val ACTION_PAUSE="com.example.nikkeauto.PAUSE"
  private val ACTION_RESUME="com.example.nikkeauto.RESUME"
@@ -60,6 +63,7 @@ class CaptureService : Service() {
  }
  private fun setPaused(paused:Boolean) {
   Settings.paused=paused
+  EventLog.add(this,"CONTROL",if(paused)"使用者暫停" else "使用者繼續")
   lastTarget=""
   stable=0
   Settings.status=if(paused)"已暫停（螢幕擷取保持啟用）" else "已繼續自動化"
@@ -90,6 +94,7 @@ class CaptureService : Service() {
    reader = ImageReader.newInstance(w, h, PixelFormat.RGBA_8888, 2)
    display = projection?.createVirtualDisplay("NikkeCapture",w,h,dpi,DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,reader!!.surface,null,handler)
    status("螢幕擷取已啟動，等待畫面")
+   EventLog.add(this,"CAPTURE","螢幕擷取已啟動 ${w}x${h}")
   } catch(e:Exception) {status("擷取啟動失敗: ${e.javaClass.simpleName}");stopSelf();return START_NOT_STICKY}
   handler.post(object:Runnable {
    override fun run() {
@@ -153,6 +158,10 @@ class CaptureService : Service() {
       val t=it.first.replace(" ","")
       t.contains("點擊任意處") || t.contains("点击任意处") || t.contains("進行下一步") || t.contains("进行下一步")
      }
+     val failed=all.contains("OPERATIONFAILED") ||
+      (all.contains("OPERATION") && all.contains("FAILED")) ||
+      (all.contains("逾時") && (all.contains("重新挑戰") || all.contains("編隊") || all.contains("编队")))
+     if(!failed)failureHandled=false
      val hasResult=next!=null || (all.contains("REWARD") && all.contains("STAGE"))
      val popup=(all.contains("OUTPOSTDEFENSE") || all.contains("基地防禦") || all.contains("基地防御") || all.contains("升級獎勵") || all.contains("升级奖励")) && hasResult
      val quick=lines.firstOrNull { it.first.replace(" ","").contains("快速戰鬥") || it.first.replace(" ","").contains("快速战斗") }
@@ -170,13 +179,17 @@ class CaptureService : Service() {
      val resultScreen=hasResult || popup
      val outdoorMap=!battleScreen && !storyScreen && !resultScreen &&
       (all.contains("野外") || all.contains("CURRENTAREA") || all.contains("NORMAL"))
-     val monster=if(Settings.map && outdoorMap)MapDetector.redRingMonster(bitmap) else null
+     // Selected blue-core encounters are more reliable than raw red components.
+     val blueCore=if(Settings.map && outdoorMap)MapDetector.blueCoreRedRing(bitmap) else null
+     val monster=if(Settings.map && outdoorMap)
+      blueCore ?: MapDetector.redRingMonster(bitmap) else null
      val nav=if(Settings.map && outdoorMap && monster==null)MapDetector.navigationDiamond(bitmap) else null
      val boss=if(Settings.map && outdoorMap && monster==null && nav==null)MapDetector.bossPortal(bitmap) else null
      val mini=if(Settings.map && outdoorMap)MapDetector.minimapEnemyDirection(bitmap) else 0
      val idleMap=Settings.map && outdoorMap && monster==null && nav==null && boss==null
      val nowMap=SystemClock.elapsedRealtime()
      val target:Triple<String,Float,Float>?=when {
+      failed && !failureHandled -> Triple("failed-return",w*.16f,h*.913f)
       Settings.skip && popup -> Triple("upgrade-popup",w*.50f,h*.76f)
       Settings.skip && visibleSkip!=null -> Triple("skip-visible",skipTapX,skipTapY)
       Settings.skip && skipIcon!=null -> Triple("skip-image",skipIcon.x,skipIcon.y)
@@ -203,21 +216,23 @@ class CaptureService : Service() {
       val now=SystemClock.elapsedRealtime()
       status("目標 ${target.first} @(${target.second.toInt()},${target.third.toInt()}) 確認 ${stable}/2")
       val cooldown=when(target.first) {"map-monster","map-nav","map-boss"->6500L;"skip-visible"->1200L;else->1500L}
-      val requiredFrames=if(target.first=="skip-visible")1 else 2
+      val requiredFrames=if(target.first=="skip-visible")1 else if(target.first=="failed-return")2 else 2
       if(!Settings.paused && Settings.running && stable>=requiredFrames && now-lastTap>=cooldown) {
        val tap=Settings.tap
        if(tap!=null) {
         if(tap.click(target.second,target.third)) {
          Settings.taps++
          status("已送出 ${target.first} 點擊，共 ${Settings.taps} 次")
+         EventLog.add(this,"TAP","${target.first} (${target.second.toInt()},${target.third.toInt()})")
         }
-       } else status("無障礙服務未連接：請檢查系統設定")
+       } else {status("無障礙服務未連接：請檢查系統設定");EventLog.add(this,"ERROR","無障礙服務未連接")}
        lastTap=now
        stable=0
       }
      } else {
       stable=0;lastTarget=""
       status("分析中：${Settings.frames} 張；劇情=${storyHud} SKIP文字=${visibleSkip!=null} SKIP圖=${skipIcon?.score ?: 0f} 地圖=${outdoorMap} 紅圈=${monster?.score ?: 0} 導航=${nav!=null} Boss=${boss!=null} 戰鬥=${battleScreen} 橘鍵=${orangeQuick!=null} 藍鍵=${blueEnter!=null} OCR: ${all.take(25)}")
+      if(failed && failureHandled){Settings.map=false;Settings.patrol=false;Settings.paused=true}
       if(idleMap && Settings.patrol && !Settings.paused && Settings.running){
        if(noTargetSince==0L)noTargetSince=nowMap
        if(nowMap-noTargetSince>9000L && nowMap-lastTap>6500L){
@@ -233,13 +248,14 @@ class CaptureService : Service() {
          }
          lastTap=nowMap;noTargetSince=nowMap
          status("巡弋視角 ${patrolStep%5}/5，小地圖方向=${mini}")
+         EventLog.add(this,"PATROL","方向步驟 ${patrolStep%5}/5")
         }
        }
       }else noTargetSince=0L
      }
-    } catch(e:Exception) {status("辨識處理失敗: ${e.javaClass.simpleName}")}
+    } catch(e:Exception) {status("辨識處理失敗: ${e.javaClass.simpleName}");EventLog.add(this,"ERROR","辨識處理失敗: ${e.message}")}
    }
-   .addOnFailureListener {status("OCR 失敗: ${it.javaClass.simpleName}")}
+   .addOnFailureListener {status("OCR 失敗: ${it.javaClass.simpleName}");EventLog.add(this,"ERROR","OCR 失敗: ${it.message}")}
    .addOnCompleteListener {busy=false;bitmap.recycle()}
  }
 
