@@ -52,11 +52,10 @@ object ModernUi {
   line.addView(sw)
   return line
  }
- data class ViewRefs(val status:TextView,val details:TextView,val logs:TextView)
+ data class ViewRefs(val status:TextView,val details:TextView)
  fun create(a:Activity,
   permissions:()->Unit,capture:()->Unit,test:()->Unit,
-  pause:()->Unit,resume:()->Unit,stop:()->Unit,
-  copyLogs:()->Unit,clearLogs:()->Unit):ViewRefs{
+  pause:()->Unit,resume:()->Unit,stop:()->Unit):ViewRefs{
   a.window.statusBarColor=BG
   a.window.navigationBarColor=BG
   val root=vertical(a).apply{setBackgroundColor(BG)}
@@ -89,15 +88,6 @@ object ModernUi {
   add(monitor,status,dp(a,10))
   add(monitor,details,dp(a,8))
   add(body,monitor,dp(a,12))
-  val logCard=card(a,"辨識日誌 / EVENT LOG")
-  val logControls=row(a)
-  logControls.addView(button(a,"複製日誌",PANEL){copyLogs()},LinearLayout.LayoutParams(0,dp(a,43),1f))
-  logControls.addView(button(a,"清除",PANEL){clearLogs()},LinearLayout.LayoutParams(0,dp(a,43),1f).apply{leftMargin=dp(a,8)})
-  add(logCard,logControls,dp(a,10))
-  val logs=label(a,"等待事件...",11f,MUTED)
-  logs.setTextIsSelectable(true)
-  add(logCard,logs,dp(a,10))
-  add(body,logCard,dp(a,12))
   val notes=label(a,"授權時選擇整個螢幕。暫停會保留擷取授權；完全停止後需再次授權。",11f,MUTED)
   add(body,notes,dp(a,12))
   val footer=row(a).apply{setPadding(dp(a,10),dp(a,10),dp(a,10),dp(a,12));setBackgroundColor(SURFACE)}
@@ -114,6 +104,6 @@ object ModernUi {
   }
   root.addView(footer)
   a.setContentView(root)
-  return ViewRefs(status,details,logs)
+  return ViewRefs(status,details)
  }
 }
