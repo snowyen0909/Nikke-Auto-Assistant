@@ -20,6 +20,8 @@ class CaptureService:Service(){
  private var lastTap=0L
  private var lastTarget=""
  private var stable=0
+ private var noTargetSince=0L
+ private var patrolStep=0
  override fun onBind(intent:Intent?)=null
  override fun onStartCommand(intent:Intent?,flags:Int,startId:Int):Int{
  val channel="capture";val manager=getSystemService(NOTIFICATION_SERVICE) as NotificationManager
@@ -49,14 +51,14 @@ class CaptureService:Service(){
  val target=when{
  Settings.skip && skip!=null -> Triple("skip",skip.second,skip.third)
  Settings.skip && next!=null -> Triple("next",w*0.50f,h*0.80f)
- Settings.battle && stage && quick!=null && isOrange(cropped,quick.second.toInt(),quick.third.toInt()) -> Triple("quick",quick.second,quick.third)
+ Settings.battle && stage && quick!=null && isOrangeNear(cropped,quick.second.toInt(),quick.third.toInt()) -> Triple("quick",quick.second,quick.third)
  Settings.battle && stage && enter!=null -> Triple("enter",enter.second,enter.third)
  else -> null
  }
- if(target!=null){val key=target.first;if(key==lastTarget)stable++ else {lastTarget=key;stable=1};val now=SystemClock.elapsedRealtime();if(stable>=2 && now-lastTap>=1800){Settings.tap?.click(target.second,target.third);lastTap=now;stable=0}}
- else {stable=0;lastTarget=""}
+ if(target!=null){noTargetSince=0L;val key=target.first;if(key==lastTarget)stable++ else {lastTarget=key;stable=1};val now=SystemClock.elapsedRealtime();if(stable>=2 && now-lastTap>=1800){Settings.tap?.click(target.second,target.third);lastTap=now;stable=0}}
+ else {stable=0;lastTarget="";if(Settings.patrol && Settings.map && !stage && skip==null && next==null){val now=SystemClock.elapsedRealtime();if(noTargetSince==0L)noTargetSince=now;if(now-noTargetSince>8000 && now-lastTap>2500){val tap=Settings.tap;if(tap!=null){when(patrolStep++%5){0->tap.zoomOut(w.toFloat(),h.toFloat());1->tap.swipe(w*.72f,h*.50f,w*.28f,h*.50f);2->tap.swipe(w*.28f,h*.50f,w*.72f,h*.50f);3->tap.swipe(w*.50f,h*.72f,w*.50f,h*.30f);else->tap.swipe(w*.50f,h*.30f,w*.50f,h*.72f)};lastTap=now;noTargetSince=now}}}else noTargetSince=0L}
  }.addOnCompleteListener{busy=false;cropped.recycle()}
  }finally{img.close()}}
- private fun isOrange(bitmap:Bitmap,x:Int,y:Int):Boolean{val c=bitmap.getPixel(x.coerceIn(0,bitmap.width-1),y.coerceIn(0,bitmap.height-1));val r=android.graphics.Color.red(c);val g=android.graphics.Color.green(c);val b=android.graphics.Color.blue(c);return r>175 && g in 65..210 && b<110}
+ private fun isOrangeNear(bitmap:Bitmap,x:Int,y:Int):Boolean{var hits=0;var total=0;for(dy in -85..25 step 12)for(dx in -130..130 step 15){val xx=x+dx;val yy=y+dy;if(xx in 0 until bitmap.width && yy in 0 until bitmap.height){total++;val c=bitmap.getPixel(xx,yy);val r=android.graphics.Color.red(c);val g=android.graphics.Color.green(c);val b=android.graphics.Color.blue(c);if(r>190 && g in 60..195 && b<115 && r>g+35)hits++}};return total>0 && hits>total*.16}
  override fun onDestroy(){Settings.running=false;reader?.close();projection?.stop();recognizer.close();super.onDestroy()}
 }
