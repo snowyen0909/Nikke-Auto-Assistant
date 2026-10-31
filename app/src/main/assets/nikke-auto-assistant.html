@@ -262,6 +262,7 @@ const modules = [
 ];
 
 const logs = [];
+let lastModuleSignature='';
 const tagName = { click:'點擊', scan:'辨識', err:'錯誤' };
 
 const $ = (s, r=document) => r.querySelector(s);
@@ -281,6 +282,7 @@ function renderModules(){
   $('#allMods').innerHTML = html;
   $('#enCount').textContent = modules.filter(m=>m.on).length;
   $('#allCount').textContent = modules.length;
+  lastModuleSignature=modules.map(m=>m.id+':'+m.on).join('|');
 }
 document.addEventListener('click', e=>{
   const sw = e.target.closest('.sw');
@@ -383,12 +385,17 @@ renderLog();
    setMode(!s.running?'stopped':s.paused?'paused':'running');
    $('#nFrames').textContent=String(s.frames);
    $('#nClicks').textContent=String(s.taps);
+   $('#lFrames').textContent=String(s.frames);
+   $('#lClicks').textContent=String(s.taps);
+   const badge=document.querySelector('#s1 .badge');
+   if(badge)badge.textContent=s.accessibility?'已連接':'尚未連接';
    const chip=document.querySelector('.hud .chip');
    if(chip)chip.textContent='● 無障礙服務:'+(s.accessibility?'已連接':'未連接');
    for(const m of modules){
     if(typeof s[m.id]==='boolean')m.on=s[m.id];
    }
-   renderModules();
+   const signature=modules.map(m=>m.id+':'+m.on).join('|');
+   if(signature!==lastModuleSignature)renderModules();
    logs.length=0;
    for(const line of s.logs||[]){
     const match=/^(\\d\\d:\\d\\d:\\d\\d) \\[([^\\]]+)\\] (.*)$/.exec(line);
