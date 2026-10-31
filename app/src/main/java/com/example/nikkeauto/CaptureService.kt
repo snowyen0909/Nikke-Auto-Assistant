@@ -132,7 +132,7 @@ class CaptureService : Service() {
       noTargetSince=0L
       if(lastTarget==target.first)stable++ else {lastTarget=target.first;stable=1}
       val now=SystemClock.elapsedRealtime()
-      status("辨識 ${target.first}，確認 ${stable}/2；畫面 ${Settings.frames} 張")
+      status("目標 ${target.first} @(${target.second.toInt()},${target.third.toInt()}) 確認 ${stable}/2")
       if(stable>=2 && now-lastTap>=1500L) {
        val tap=Settings.tap
        if(tap!=null) {
