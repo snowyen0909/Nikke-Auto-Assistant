@@ -135,13 +135,13 @@ class CaptureService : Service() {
      // Require stage heading and at least one battle action label.
      // Do not require the old white-panel pixel threshold: it rejects
      // legitimate 14:9 portrait and landscape layouts.
-     val battleText=all.contains("STAGE") || all.contains("戰力") || all.contains("战力")
+     val battleText=all.contains("STAGE") || all.contains("BOSS") || all.contains("戰力") || all.contains("战力")
      val blueEnter=if(Settings.battle && battleText) BattleDetector.findBlueEnterButton(bitmap) else null
      val orangeQuick=if(Settings.battle && battleText) BattleDetector.findOrangeQuickButton(bitmap) else null
      val battleScreen=battleText && (quick!=null || enter!=null || blueEnter!=null || orangeQuick!=null)
      val quickState=if(quick!=null)BattleDetector.stateNear(bitmap,quick.second,quick.third) else BattleDetector.ColorState.UNKNOWN
      val enterState=if(enter!=null)BattleDetector.stateNear(bitmap,enter.second,enter.third) else BattleDetector.ColorState.UNKNOWN
-     val storyScreen=skip!=null || storyHud
+     val storyScreen=skip!=null || storyHud || skipIcon!=null
      val resultScreen=hasResult || popup
      val outdoorMap=!battleScreen && !storyScreen && !resultScreen &&
       (all.contains("野外") || all.contains("CURRENTAREA") || all.contains("NORMAL"))
@@ -150,6 +150,7 @@ class CaptureService : Service() {
       Settings.skip && popup -> Triple("upgrade-popup",w*.50f,h*.76f)
       Settings.skip && skipIcon!=null -> Triple("skip-image",skipIcon.x,skipIcon.y)
       Settings.skip && skip!=null -> Triple("skip",skip.second,skip.third)
+      Settings.skip && storyHud -> Triple("skip-toolbar",w*.89f,(skipToolbarLine?.third ?: h*.019f).coerceIn(h*.012f,h*.050f))
       Settings.skip && next!=null -> Triple("result-next",w*.50f,h*.78f)
       Settings.battle && battleScreen && orangeQuick!=null ->
        Triple("quick",orangeQuick.x,orangeQuick.y)
