@@ -10,7 +10,7 @@
 
 | 版本 | 介面 | Application ID |
 | --- | --- | --- |
-| **Modern** | 深色科技風 **Android 原生 UI**（還原至提交 `881a23b` 的介面） | `com.example.nikkeauto.modern` |
+| **Modern** | 深色科技風 **Android 原生 UI** | `com.example.nikkeauto.modern` |
 | **Classic** | 原始簡易設定頁，適合測試與除錯 | `com.example.nikkeauto.classic` |
 
 **Modern 目前不使用 HTML/WebView 介面。** Modern 的原生 UI 程式位於 `ModernUi.kt`。兩個版本可同時安裝，但請避免同時啟用兩份無障礙自動化服務，以免重複點擊。
