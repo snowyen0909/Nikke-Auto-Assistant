@@ -105,14 +105,24 @@ class CaptureService : Service() {
      }
      val all=lines.joinToString(" ") { it.first }.replace(" ","").uppercase()
      Settings.lastRecognized=all.take(110)
-     val skip=lines.firstOrNull { it.first.contains("SKIP",true) && it.second>w*.48f && it.third<h*.16f }
-     // ML Kit Chinese OCR may miss small Latin "SKIP". Require multiple
-     // independent story HUD labels before using the fixed top-right fallback.
-     val storyHud=all.contains("HIDE") && all.contains("AUTO") &&
-      (all.contains("LOG") || all.contains("SKIP"))
+     // OCR often merges "HIDE AUTO LOG SKIP" into ONE line. Its center is
+     // near AUTO, not SKIP. Never tap the center of a merged toolbar line.
+     val skip=lines.firstOrNull {
+      val normalized=it.first.replace(Regex("[^A-Za-z]"),"").uppercase()
+      normalized=="SKIP" && it.second>w*.60f && it.third<h*.12f
+     }
+     val skipToolbarLine=lines.firstOrNull {
+      it.first.contains("SKIP",true) && it.third<h*.12f && it.second>w*.35f
+     }
+     // The fallback is only allowed when the story HUD is positively detected.
+     val storyHud=(all.contains("HIDE") && all.contains("AUTO") &&
+      (all.contains("LOG") || all.contains("SKIP"))) ||
+      (skipToolbarLine!=null && all.contains("AUTO"))
      val skipFallback=storyHud && skip==null
      val skipX=w*.875f
-     val skipY=h*.045f
+     // Reuse the actual toolbar row if OCR grouped the labels; fixed fallback
+     // must stay near the TOP edge, never at the center of the AUTO label.
+     val skipY=(skipToolbarLine?.third ?: h*.022f).coerceIn(h*.012f,h*.065f)
      val next=lines.firstOrNull {
       val t=it.first.replace(" ","")
       t.contains("點擊任意處") || t.contains("点击任意处") || t.contains("進行下一步") || t.contains("进行下一步")
