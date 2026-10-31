@@ -112,8 +112,13 @@ class CaptureService : Service() {
       normalized=="SKIP" && it.second>w*.60f && it.third<h*.12f
      }
      val skipToolbarLine=lines.firstOrNull {
-      it.first.contains("SKIP",true) && it.third<h*.12f && it.second>w*.35f
+      it.first.contains("SKIP",true) && it.third<h*.14f
      }
+     // A merged OCR line (HIDE AUTO LOG SKIP) has its center over AUTO.
+     // Aim at the rightmost SKIP label instead of the merged-line center.
+     val visibleSkip=skip ?: skipToolbarLine
+     val skipTapX=if(skip!=null)skip.second else w*.89f
+     val skipTapY=(visibleSkip?.third ?: h*.023f).coerceIn(h*.010f,h*.095f)
      // The fallback is only allowed when the story HUD is positively detected.
      val storyHud=(all.contains("HIDE") && all.contains("AUTO") &&
       (all.contains("LOG") || all.contains("SKIP"))) ||
@@ -148,9 +153,8 @@ class CaptureService : Service() {
      val monster=if(Settings.map && outdoorMap)MapDetector.redRingMonster(bitmap) else null
      val target:Triple<String,Float,Float>?=when {
       Settings.skip && popup -> Triple("upgrade-popup",w*.50f,h*.76f)
+      Settings.skip && visibleSkip!=null -> Triple("skip-visible",skipTapX,skipTapY)
       Settings.skip && skipIcon!=null -> Triple("skip-image",skipIcon.x,skipIcon.y)
-      Settings.skip && skip!=null -> Triple("skip",skip.second,skip.third)
-      Settings.skip && storyHud -> Triple("skip-toolbar",w*.89f,(skipToolbarLine?.third ?: h*.019f).coerceIn(h*.012f,h*.050f))
       Settings.skip && next!=null -> Triple("result-next",w*.50f,h*.78f)
       Settings.battle && battleScreen && orangeQuick!=null ->
        Triple("quick",orangeQuick.x,orangeQuick.y)
@@ -169,8 +173,9 @@ class CaptureService : Service() {
       if(lastTarget==target.first)stable++ else {lastTarget=target.first;stable=1}
       val now=SystemClock.elapsedRealtime()
       status("目標 ${target.first} @(${target.second.toInt()},${target.third.toInt()}) 確認 ${stable}/2")
-      val cooldown=if(target.first=="map-monster")6000L else 1500L
-      if(stable>=2 && now-lastTap>=cooldown) {
+      val cooldown=when(target.first) {"map-monster"->6000L;"skip-visible"->1200L;else->1500L}
+      val requiredFrames=if(target.first=="skip-visible")1 else 2
+      if(stable>=requiredFrames && now-lastTap>=cooldown) {
        val tap=Settings.tap
        if(tap!=null) {
         if(tap.click(target.second,target.third)) {
@@ -183,7 +188,7 @@ class CaptureService : Service() {
       }
      } else {
       stable=0;lastTarget=""
-      status("分析中：${Settings.frames} 張；劇情=${storyHud} SKIP圖=${skipIcon?.score ?: 0f} 地圖=${outdoorMap} 紅圈=${monster?.score ?: 0} 戰鬥=${battleScreen} 橘鍵=${orangeQuick!=null} 藍鍵=${blueEnter!=null} OCR: ${all.take(25)}")
+      status("分析中：${Settings.frames} 張；劇情=${storyHud} SKIP文字=${visibleSkip!=null} SKIP圖=${skipIcon?.score ?: 0f} 地圖=${outdoorMap} 紅圈=${monster?.score ?: 0} 戰鬥=${battleScreen} 橘鍵=${orangeQuick!=null} 藍鍵=${blueEnter!=null} OCR: ${all.take(25)}")
       // Map monster detection is not implemented yet. Do not patrol without a reliable map classifier.
       noTargetSince=0L
      }
