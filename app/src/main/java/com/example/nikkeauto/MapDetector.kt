@@ -61,4 +61,71 @@ object MapDetector {
   }
   return best
  }
+ /** Candidate blue/cyan exclamation markers inside the map, excluding HUD/minimap.
+  * Verify a bright white center surrounded by cyan-blue pixels.
+  */
+ fun navigationDiamond(b:Bitmap):Target? {
+  val w=b.width;val h=b.height;val s=max(3,min(w,h)/190)
+  var best:Target?=null
+  for(y in (h*.15f).toInt() until (h*.87f).toInt() step s)
+   for(x in (w*.14f).toInt() until (w*.92f).toInt() step s){
+    if(x<w*.24f && y<h*.32f)continue
+    var cyan=0;var white=0;var samples=0
+    val r=max(10,min(w,h)/55)
+    for(dy in -r..r step max(3,r/4))for(dx in -r..r step max(3,r/4)){
+     val xx=x+dx;val yy=y+dy
+     if(xx !in 0 until w || yy !in 0 until h)continue
+     val color=b.getPixel(xx,yy)
+     val red=Color.red(color);val green=Color.green(color);val blue=Color.blue(color)
+     if(blue>155 && green>120 && blue>red*1.30f && green>red*1.20f)cyan++
+     if(red>205 && green>205 && blue>205)white++
+     samples++
+    }
+    if(samples==0 || cyan<6 || white<3)continue
+    // Prefer a sufficiently strong local cyan ring with a white interior.
+    val score=cyan*2+white
+    if(best==null || score>best.score)best=Target(x.toFloat(),y.toFloat(),score)
+   }
+  return best?.takeIf{it.score>=18}
+ }
+ /** Boss portal: broad saturated red/orange glowing ground zone, not a tiny enemy ring. */
+ fun bossPortal(b:Bitmap):Target? {
+  val w=b.width;val h=b.height
+  val s=max(4,min(w,h)/130)
+  var best:Target?=null
+  for(y in (h*.19f).toInt() until (h*.79f).toInt() step s*3)
+   for(x in (w*.2f).toInt() until (w*.93f).toInt() step s*3){
+    var reds=0;var total=0
+    val radius=max(20,min(w,h)/13)
+    for(dy in -radius..radius step s*2)for(dx in -radius..radius step s*2){
+     val xx=x+dx;val yy=y+dy
+     if(xx !in 0 until w || yy !in 0 until h)continue
+     val c=b.getPixel(xx,yy)
+     val r=Color.red(c);val g=Color.green(c);val blue=Color.blue(c)
+     if(r>175 && r>g*1.5f && r>blue*1.6f)reds++
+     total++
+    }
+    if(total<10)continue
+    val fraction=reds.toFloat()/total
+    if(fraction>.43f && (best==null || reds>best.score))
+     best=Target(x.toFloat(),y.toFloat(),reds)
+   }
+  return best
+ }
+ /** Approximate enemy direction from pink markers in the top-left minimap.
+  * Returns -1 (left), 0 (unknown), +1 (right). Never treated as tap coordinates.
+  */
+ fun minimapEnemyDirection(b:Bitmap):Int {
+  val w=b.width;val h=b.height
+  var sx=0L;var count=0
+  for(y in (h*.065f).toInt() until (h*.24f).toInt() step 3)
+   for(x in (w*.025f).toInt() until (w*.20f).toInt() step 3){
+    val c=b.getPixel(x,y)
+    val r=Color.red(c);val g=Color.green(c);val blue=Color.blue(c)
+    if(r>125 && blue>95 && r>g*1.35f && blue>g*1.25f) {sx+=x;count++}
+   }
+  if(count<5)return 0
+  return if(sx/count < w*.105f)-1 else 1
+ }
+
 }
