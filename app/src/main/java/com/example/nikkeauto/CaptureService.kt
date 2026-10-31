@@ -126,7 +126,8 @@ class CaptureService : Service() {
      // legitimate 14:9 portrait and landscape layouts.
      val battleText=all.contains("STAGE") || all.contains("戰力") || all.contains("战力")
      val blueEnter=if(Settings.battle && battleText) BattleDetector.findBlueEnterButton(bitmap) else null
-     val battleScreen=battleText && (quick!=null || enter!=null || blueEnter!=null)
+     val orangeQuick=if(Settings.battle && battleText) BattleDetector.findOrangeQuickButton(bitmap) else null
+     val battleScreen=battleText && (quick!=null || enter!=null || blueEnter!=null || orangeQuick!=null)
      val quickState=if(quick!=null)BattleDetector.stateNear(bitmap,quick.second,quick.third) else BattleDetector.ColorState.UNKNOWN
      val enterState=if(enter!=null)BattleDetector.stateNear(bitmap,enter.second,enter.third) else BattleDetector.ColorState.UNKNOWN
      val storyScreen=skip!=null || storyHud
@@ -139,6 +140,8 @@ class CaptureService : Service() {
       Settings.skip && skip!=null -> Triple("skip",skip.second,skip.third)
       Settings.skip && skipFallback -> Triple("skip-fallback",skipX,skipY)
       Settings.skip && next!=null -> Triple("result-next",w*.50f,h*.78f)
+      Settings.battle && battleScreen && orangeQuick!=null ->
+       Triple("quick",orangeQuick.x,orangeQuick.y)
       Settings.battle && battleScreen && quick!=null && quickState==BattleDetector.ColorState.ORANGE ->
        Triple("quick",quick.second,quick.third)
       Settings.battle && battleScreen && blueEnter!=null ->
@@ -168,7 +171,7 @@ class CaptureService : Service() {
       }
      } else {
       stable=0;lastTarget=""
-      status("分析中：${Settings.frames} 張；劇情=${storyHud} 地圖=${outdoorMap} 紅圈=${monster?.score ?: 0} 戰鬥=${battleScreen} 藍鍵=${blueEnter!=null} OCR: ${all.take(25)}")
+      status("分析中：${Settings.frames} 張；劇情=${storyHud} 地圖=${outdoorMap} 紅圈=${monster?.score ?: 0} 戰鬥=${battleScreen} 橘鍵=${orangeQuick!=null} 藍鍵=${blueEnter!=null} OCR: ${all.take(25)}")
       // Map monster detection is not implemented yet. Do not patrol without a reliable map classifier.
       noTargetSince=0L
      }
