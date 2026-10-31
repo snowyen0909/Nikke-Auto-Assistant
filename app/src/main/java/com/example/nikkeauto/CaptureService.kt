@@ -260,3 +260,41 @@ class CaptureService : Service() {
     }
     .addOnFailureListener {status("OCR 失敗: ${it.javaClass.simpleName}")}
 
+   .addOnCompleteListener {busy=false;bitmap.recycle()}
+ }
+
+ private fun isBattlePanel(b:Bitmap):Boolean {
+  // White stage-detail panel at the bottom, plus blue enter button.
+  // Do not use blue-button detection alone on the exploration map.
+  val w=b.width;val h=b.height
+  var bright=0;var count=0
+  for(iy in 72..90 step 3) for(ix in 8..45 step 4) {
+   val x=(w*ix/100).coerceIn(0,w-1)
+   val y=(h*iy/100).coerceIn(0,h-1)
+   val c=b.getPixel(x,y)
+   if(Color.red(c)>215 && Color.green(c)>215 && Color.blue(c)>215)bright++
+   count++
+  }
+  return count>0 && bright.toFloat()/count>.72f
+ }
+ private fun isOrangeNear(bitmap:Bitmap,x:Int,y:Int):Boolean {
+  var hits=0;var total=0
+  val rx=(bitmap.width*.10f).toInt().coerceAtLeast(20)
+  val ry=(bitmap.height*.018f).toInt().coerceAtLeast(10)
+  for(dy in -ry..ry step 8) for(dx in -rx..rx step 8) {
+   val xx=x+dx;val yy=y+dy
+   if(xx in 0 until bitmap.width && yy in 0 until bitmap.height) {
+    val c=bitmap.getPixel(xx,yy)
+    val r=Color.red(c);val g=Color.green(c);val b=Color.blue(c)
+    total++;if(r>190 && g in 65..205 && b<125 && r>g+35)hits++
+   }
+  }
+  return total>0 && hits.toFloat()/total>.08f
+ }
+
+ override fun onDestroy(){
+  Settings.running=false;Settings.paused=false;Settings.status="已停止"
+  display?.release();reader?.close();projection?.stop();recognizer.close()
+  super.onDestroy()
+ }
+}
