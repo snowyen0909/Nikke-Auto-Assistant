@@ -114,14 +114,16 @@ class CaptureService : Service() {
       all.contains("基地防禦") || all.contains("基地防御") || all.contains("升級獎勵") || all.contains("升级奖励")
      val quick=lines.firstOrNull { it.first.replace(" ","").contains("快速戰鬥") || it.first.replace(" ","").contains("快速战斗") }
      val enter=lines.firstOrNull { it.first.replace(" ","").contains("進入戰鬥") || it.first.replace(" ","").contains("进入战斗") }
-     val battleScreen=(quick!=null || enter!=null) && (all.contains("STAGE") || all.contains("戰力") || all.contains("战力"))
+     val detected=if(Settings.battle) BattleDetector.detect(bitmap) else null
+     val battleScreen=(quick!=null || enter!=null || detected?.enter!=null) && (all.contains("STAGE") || all.contains("戰力") || all.contains("战力") || all.contains("WEAKPOINT") || all.contains("EFFECTIVERANGE"))
      val target:Triple<String,Float,Float>?=when {
       Settings.skip && popup && next!=null -> Triple("upgrade-popup",w*.50f,h*.74f)
       Settings.skip && popup -> Triple("upgrade-popup",w*.50f,h*.76f)
       Settings.skip && skip!=null -> Triple("skip",skip.second,skip.third)
       Settings.skip && next!=null -> Triple("result-next",w*.50f,h*.77f)
-      Settings.battle && battleScreen && quick!=null && isOrangeNear(bitmap,quick.second.toInt(),quick.third.toInt()) ->
-       Triple("quick",quick.second,quick.third)
+      Settings.battle && battleScreen && detected?.quick!=null && (quick!=null || detected.quick.confidence>.17f) ->
+       Triple("quick",detected.quick.x,detected.quick.y)
+      Settings.battle && battleScreen && detected?.enter!=null -> Triple("enter",detected.enter.x,detected.enter.y)
       Settings.battle && battleScreen && enter!=null -> Triple("enter",enter.second,enter.third)
       else -> null
      }
