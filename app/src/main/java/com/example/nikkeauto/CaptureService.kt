@@ -128,6 +128,17 @@ class CaptureService : Service() {
      }
      val all=lines.joinToString(" ") { it.first }.replace(" ","").uppercase()
      Settings.lastRecognized=all.take(110)
+     // Daily routine has exclusive priority over ordinary map/story automation.
+     if(Settings.dailyMode && DailyRoutine.active){
+      val action=DailyRoutine.decide(lines,w,h)
+      if(action!=null && Settings.running && !Settings.paused){
+       val sent=Settings.tap?.click(action.x,action.y) ?: false
+       if(sent)Settings.taps++
+      }
+      Settings.status=DailyRoutine.status
+      return@addOnSuccessListener
+     }
+     if(Settings.dailyMode && !DailyRoutine.active)Settings.dailyMode=false
      // OCR often merges "HIDE AUTO LOG SKIP" into ONE line. Its center is
      // near AUTO, not SKIP. Never tap the center of a merged toolbar line.
      val skip=lines.firstOrNull {
