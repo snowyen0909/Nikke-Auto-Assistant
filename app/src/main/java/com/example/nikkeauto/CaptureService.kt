@@ -63,7 +63,6 @@ class CaptureService : Service() {
  }
  private fun setPaused(paused:Boolean) {
   Settings.paused=paused
-  EventLog.add(this,"CONTROL",if(paused)"使用者暫停" else "使用者繼續")
   lastTarget=""
   stable=0
   Settings.status=if(paused)"已暫停（螢幕擷取保持啟用）" else "已繼續自動化"
@@ -94,7 +93,6 @@ class CaptureService : Service() {
    reader = ImageReader.newInstance(w, h, PixelFormat.RGBA_8888, 2)
    display = projection?.createVirtualDisplay("NikkeCapture",w,h,dpi,DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,reader!!.surface,null,handler)
    status("螢幕擷取已啟動，等待畫面")
-   EventLog.add(this,"CAPTURE","螢幕擷取已啟動 ${w}x${h}")
   } catch(e:Exception) {status("擷取啟動失敗: ${e.javaClass.simpleName}");stopSelf();return START_NOT_STICKY}
   handler.post(object:Runnable {
    override fun run() {
@@ -162,7 +160,10 @@ class CaptureService : Service() {
       (all.contains("OPERATION") && all.contains("FAILED")) ||
       (all.contains("逾時") && (all.contains("重新挑戰") || all.contains("編隊") || all.contains("编队")))
      if(!failed)failureHandled=false
-     val hasResult=next!=null || (all.contains("REWARD") && all.contains("STAGE"))
+     val resultSignature=(all.contains("STAGECLEARCOUNT") ||
+       (all.contains("REWARD") && (all.contains("STAGE") || all.contains("OPERATION"))) ||
+       (all.contains("OPERATIONCOMPLETE") && all.contains("STAGE")))
+     val hasResult=next!=null || resultSignature
      val popup=(all.contains("OUTPOSTDEFENSE") || all.contains("基地防禦") || all.contains("基地防御") || all.contains("升級獎勵") || all.contains("升级奖励")) && hasResult
      val quick=lines.firstOrNull { it.first.replace(" ","").contains("快速戰鬥") || it.first.replace(" ","").contains("快速战斗") }
      val enter=lines.firstOrNull { it.first.replace(" ","").contains("進入戰鬥") || it.first.replace(" ","").contains("进入战斗") }
@@ -193,7 +194,7 @@ class CaptureService : Service() {
       Settings.skip && popup -> Triple("upgrade-popup",w*.50f,h*.76f)
       Settings.skip && visibleSkip!=null -> Triple("skip-visible",skipTapX,skipTapY)
       Settings.skip && skipIcon!=null -> Triple("skip-image",skipIcon.x,skipIcon.y)
-      Settings.skip && next!=null -> Triple("result-next",w*.50f,h*.78f)
+      Settings.skip && hasResult && !failed -> Triple("result-next",w*.53f,h*.87f)
       Settings.battle && battleScreen && orangeQuick!=null ->
        Triple("quick",orangeQuick.x,orangeQuick.y)
       Settings.battle && battleScreen && quick!=null && quickState==BattleDetector.ColorState.ORANGE ->
@@ -223,9 +224,7 @@ class CaptureService : Service() {
         if(tap.click(target.second,target.third)) {
          Settings.taps++
          status("已送出 ${target.first} 點擊，共 ${Settings.taps} 次")
-         EventLog.add(this,"TAP","${target.first} (${target.second.toInt()},${target.third.toInt()})")
         }
-       } else {status("無障礙服務未連接：請檢查系統設定");EventLog.add(this,"ERROR","無障礙服務未連接")}
        lastTap=now
        stable=0
       }
@@ -248,14 +247,11 @@ class CaptureService : Service() {
          }
          lastTap=nowMap;noTargetSince=nowMap
          status("巡弋視角 ${patrolStep%5}/5，小地圖方向=${mini}")
-         EventLog.add(this,"PATROL","方向步驟 ${patrolStep%5}/5")
         }
        }
       }else noTargetSince=0L
      }
-    } catch(e:Exception) {status("辨識處理失敗: ${e.javaClass.simpleName}");EventLog.add(this,"ERROR","辨識處理失敗: ${e.message}")}
    }
-   .addOnFailureListener {status("OCR 失敗: ${it.javaClass.simpleName}");EventLog.add(this,"ERROR","OCR 失敗: ${it.message}")}
    .addOnCompleteListener {busy=false;bitmap.recycle()}
  }
 
