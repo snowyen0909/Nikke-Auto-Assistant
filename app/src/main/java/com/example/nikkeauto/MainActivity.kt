@@ -7,12 +7,16 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.Settings as AndroidSettings
 import android.widget.*
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 
 class MainActivity:Activity(){
  private val captureRequest=100
  private val handler=Handler(Looper.getMainLooper())
  private lateinit var liveStatus:TextView
  private var modernStatus:ModernUi.ViewRefs?=null
+ private var classicLog:TextView?=null
  private val refresh=object:Runnable {
   override fun run(){
    if(::liveStatus.isInitialized){
@@ -23,7 +27,9 @@ class MainActivity:Activity(){
 已送出點擊：${Settings.taps}
 辨識文字：${Settings.lastRecognized.take(90)}""".trimIndent()
    }
+   classicLog?.text=EventLog.recent().takeLast(5000)
    modernStatus?.let {
+    it.logs.text=EventLog.recent().takeLast(5000)
     it.status.text=if(!Settings.running)"● 已停止" else if(Settings.paused)"● 已暫停" else "● 巡航中"
     it.details.text="""服務：${if(Settings.tap!=null)"已連線" else "未連線"} | 分析：${Settings.frames} 張 | 點擊：${Settings.taps} 次
 
@@ -42,7 +48,8 @@ OCR: ${Settings.lastRecognized.take(95)}""".trimIndent()
     test={testClick()},
     pause={setPause(true)},
     resume={if(Settings.running)setPause(false) else askForCapture()},
-    stop={Settings.running=false;Settings.paused=false;stopService(Intent(this,CaptureService::class.java))}
+    stop={Settings.running=false;Settings.paused=false;stopService(Intent(this,CaptureService::class.java))},
+    copyLogs={copyLogs()},clearLogs={EventLog.clear(this)}
    )
    handler.post(refresh)
    return
@@ -88,11 +95,22 @@ OCR: ${Settings.lastRecognized.take(95)}""".trimIndent()
   root.addView(Button(this).apply{text="停止自動化";setOnClickListener{
    Settings.running=false;Settings.paused=false;stopService(Intent(this@MainActivity,CaptureService::class.java))
   }})
+  val logTitle=TextView(this).apply{text="操作日誌 / EVENT LOG";textSize=17f}
+  root.addView(logTitle)
+  root.addView(Button(this).apply{text="複製日誌";setOnClickListener{copyLogs()}})
+  root.addView(Button(this).apply{text="清除日誌";setOnClickListener{EventLog.clear(this@MainActivity)}})
+  classicLog=TextView(this).apply{textSize=12f;setTextIsSelectable(true)}
+  root.addView(classicLog)
   liveStatus=TextView(this).apply{textSize=15f;setPadding(0,20,0,0)}
   root.addView(liveStatus)
   root.addView(TextView(this).apply{text="授權時請選擇「整個螢幕」，然後切換到遊戲。地圖尋敵與巡弋為實驗性功能。可透過通知列暫停／繼續；停止後須重新授權截圖。"})
   setContentView(ScrollView(this).apply{addView(root)})
   handler.post(refresh)
+ }
+ private fun copyLogs(){
+  val clipboard=getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+  clipboard.setPrimaryClip(ClipData.newPlainText("NIKKE automation log",EventLog.recent()))
+  Toast.makeText(this,"日誌已複製",Toast.LENGTH_SHORT).show()
  }
  private fun askForCapture(){
   if(Settings.tap==null){Toast.makeText(this,"請先啟用無障礙服務",Toast.LENGTH_LONG).show();return}
