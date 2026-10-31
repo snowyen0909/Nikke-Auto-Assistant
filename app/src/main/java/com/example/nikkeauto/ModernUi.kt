@@ -63,7 +63,7 @@ object ModernUi {
   add(head,label(a,"NIKKE  ASSISTANT",21f,CYAN,true))
   add(head,label(a,"勝利女神 · 自動化戰術巡航終端",11f,MUTED))
   root.addView(head)
-  val scroll=ScrollView(a).apply{fillViewport=true}
+  val scroll=ScrollView(a).apply{isFillViewport=true}
   val body=vertical(a).apply{setPadding(dp(a,14),dp(a,4),dp(a,14),dp(a,16))}
   scroll.addView(body)
   root.addView(scroll,LinearLayout.LayoutParams(-1,0,1f))
