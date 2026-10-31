@@ -13,14 +13,14 @@ import android.widget.*
  * No fake FPS / tap counts, CDN, or simulated authorization statuses.
  */
 object ModernUi {
- private const val BG=0xFF0C0E14.toInt()
- private const val SURFACE=0xFF151922.toInt()
- private const val PANEL=0xFF1B202C.toInt()
- private const val EDGE=0xFF2A3245.toInt()
- private const val CYAN=0xFF00F0FF.toInt()
- private const val MUTED=0xFF9BA9C0.toInt()
- private const val AMBER=0xFFFFAA00.toInt()
- private const val RED=0xFFFF3366.toInt()
+ private val BG=0xFF0C0E14.toInt()
+ private val SURFACE=0xFF151922.toInt()
+ private val PANEL=0xFF1B202C.toInt()
+ private val EDGE=0xFF2A3245.toInt()
+ private val CYAN=0xFF00F0FF.toInt()
+ private val MUTED=0xFF9BA9C0.toInt()
+ private val AMBER=0xFFFFAA00.toInt()
+ private val RED=0xFFFF3366.toInt()
 
  private fun dp(a:Activity,x:Int)=(x*a.resources.displayMetrics.density+.5f).toInt()
  private fun bg(color:Int,stroke:Int=EDGE,radius:Float=14f):GradientDrawable =
