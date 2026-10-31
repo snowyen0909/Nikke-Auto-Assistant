@@ -398,7 +398,7 @@ renderLog();
    if(signature!==lastModuleSignature)renderModules();
    logs.length=0;
    for(const line of s.logs||[]){
-    const match=/^(\\d\\d:\\d\\d:\\d\\d) \\[([^\\]]+)\\] (.*)$/.exec(line);
+    const match=/^(\d\d:\d\d:\d\d) \[([^\]]+)\] (.*)$/.exec(line);
     if(!match)continue;
     logs.push({t:match[1],k:match[2]==='TAP'?'click':match[2]==='ERROR'||match[2]==='FAILURE'?'err':'scan',m:match[3]});
    }
