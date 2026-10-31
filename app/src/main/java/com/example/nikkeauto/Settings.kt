@@ -5,6 +5,7 @@ object Settings {
  @Volatile var map=true
  @Volatile var patrol=false
  @Volatile var running=false
+ @Volatile var paused=false
  @Volatile var tap:TapService?=null
  @Volatile var status="未啟動"
  @Volatile var lastRecognized=""
