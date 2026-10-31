@@ -12,15 +12,32 @@ class MainActivity:Activity(){
  private val captureRequest=100
  private val handler=Handler(Looper.getMainLooper())
  private lateinit var liveStatus:TextView
+ private var modernStatus:ModernUi.ViewRefs?=null
  private val refresh=object:Runnable {
   override fun run(){
    if(::liveStatus.isInitialized){
     liveStatus.text="控制：${if(!Settings.running)"已停止" else if(Settings.paused)"已暫停" else "執行中"}\\n運行狀態：${Settings.status}\n無障礙服務：${if(Settings.tap!=null)"已連接" else "未連接"}\n已分析畫面：${Settings.frames}\n已送出點擊：${Settings.taps}\n辨識文字：${Settings.lastRecognized.take(90)}"
    }
+   modernStatus?.let {
+    it.status.text=if(!Settings.running)"● 已停止" else if(Settings.paused)"● 已暫停" else "● 巡航中"
+    it.details.text="服務：${if(Settings.tap!=null)"已連線" else "未連線"} | 分析：${Settings.frames} 張 | 點擊：${Settings.taps} 次\n\n${Settings.status}\n\nOCR: ${Settings.lastRecognized.take(95)}"
+   }
    handler.postDelayed(this,900)
   }
  }
  override fun onCreate(savedInstanceState:Bundle?){super.onCreate(savedInstanceState)
+  if(BuildConfig.FLAVOR=="modern"){
+   modernStatus=ModernUi.create(this,
+    permissions={startActivity(Intent(AndroidSettings.ACTION_ACCESSIBILITY_SETTINGS))},
+    capture={askForCapture()},
+    test={testClick()},
+    pause={setPause(true)},
+    resume={if(Settings.running)setPause(false) else askForCapture()},
+    stop={Settings.running=false;Settings.paused=false;stopService(Intent(this,CaptureService::class.java))}
+   )
+   handler.post(refresh)
+   return
+  }
   val root=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(32,42,32,28)}
   fun toggle(title:String, initial:Boolean, change:(Boolean)->Unit){
    val sw=Switch(this).apply{text=title;isChecked=initial;setOnCheckedChangeListener{_,checked->change(checked)}}
@@ -67,6 +84,21 @@ class MainActivity:Activity(){
   root.addView(TextView(this).apply{text="授權時請選擇「整個螢幕」，然後切換到遊戲。地圖尋敵與巡弋為實驗性功能。可透過通知列暫停／繼續；停止後須重新授權截圖。"})
   setContentView(ScrollView(this).apply{addView(root)})
   handler.post(refresh)
+ }
+ private fun askForCapture(){
+  if(Settings.tap==null){Toast.makeText(this,"請先啟用無障礙服務",Toast.LENGTH_LONG).show();return}
+  val manager=getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+  startActivityForResult(manager.createScreenCaptureIntent(),captureRequest)
+ }
+ private fun testClick(){
+  val tap=Settings.tap
+  if(tap==null){Toast.makeText(this,"無障礙服務未連接",Toast.LENGTH_SHORT).show();return}
+  tap.click(resources.displayMetrics.widthPixels*.50f,resources.displayMetrics.heightPixels*.50f)
+ }
+ private fun setPause(paused:Boolean){
+  if(!Settings.running){Toast.makeText(this,"請先授權螢幕並啟動",Toast.LENGTH_SHORT).show();return}
+  Settings.paused=paused
+  startService(Intent(this,CaptureService::class.java).setAction(if(paused)"com.example.nikkeauto.PAUSE" else "com.example.nikkeauto.RESUME"))
  }
  override fun onDestroy(){handler.removeCallbacks(refresh);super.onDestroy()}
  @Deprecated("Legacy activity result")
