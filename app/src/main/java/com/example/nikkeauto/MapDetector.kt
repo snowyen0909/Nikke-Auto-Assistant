@@ -61,6 +61,54 @@ object MapDetector {
   }
   return best
  }
+ /** The selected enemy in the screenshot has a BLUE hexagonal tile
+  * in the middle of a RED encounter ring. The old red-component detector
+  * often misses it because the ring is thin / partially occluded.
+  * Look for a compact blue center with red samples at radial offsets.
+  * Tap ABOVE the circle, on the monster model.
+  */
+ fun blueCoreRedRing(b:Bitmap):Target? {
+  val w=b.width;val h=b.height
+  val step=max(4,min(w,h)/210)
+  var best:Target?=null
+  val radius=(min(w,h)*.060f).toInt()
+  for(y in (h*.29f).toInt() until (h*.84f).toInt() step step*2)
+   for(x in (w*.08f).toInt() until (w*.89f).toInt() step step*2) {
+    // Do not scan the minimap or navigation HUD.
+    if(y<h*.33f && x<w*.24f)continue
+    val center=b.getPixel(x,y)
+    val cr=Color.red(center);val cg=Color.green(center);val cb=Color.blue(center)
+    if(!(cb>105 && cb>cr*1.22f && cb>cg*.95f))continue
+    var blueCount=0
+    for(dy in -8..8 step 4)for(dx in -8..8 step 4){
+     val xx=x+dx;val yy=y+dy
+     if(xx !in 0 until w || yy !in 0 until h)continue
+     val c=b.getPixel(xx,yy)
+     if(Color.blue(c)>105 && Color.blue(c)>Color.red(c)*1.20f)blueCount++
+    }
+    if(blueCount<5)continue
+    var bestRing=0
+    for(rf in intArrayOf(35,48,60,75,90,105)){
+     val r=max(9,radius*rf/100)
+     var red=0
+     for(k in 0 until 24){
+      val angle=k*Math.PI/12.0
+      val xx=x+(r*cos(angle)).toInt()
+      val yy=y+(r*.55f*sin(angle)).toInt()
+      if(xx !in 0 until w || yy !in 0 until h)continue
+      val pixel=b.getPixel(xx,yy)
+      val rr=Color.red(pixel);val gg=Color.green(pixel);val bb=Color.blue(pixel)
+      if(rr>125 && rr>gg*1.28f && rr>bb*1.20f)red++
+     }
+     bestRing=max(bestRing,red)
+    }
+    if(bestRing<7)continue
+    val score=bestRing*3+blueCount
+    val result=Target(x.toFloat(),(y-radius*.72f).coerceAtLeast(h*.17f),score)
+    if(best==null || score>best.score)best=result
+   }
+  return best
+ }
  /** Candidate blue/cyan exclamation markers inside the map, excluding HUD/minimap.
   * Verify a bright white center surrounded by cyan-blue pixels.
   */
