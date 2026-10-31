@@ -42,8 +42,7 @@ OCR: ${Settings.lastRecognized.take(95)}""".trimIndent()
     test={testClick()},
     pause={setPause(true)},
     resume={if(Settings.running)setPause(false) else askForCapture()},
-    stop={Settings.running=false;Settings.paused=false;stopService(Intent(this,CaptureService::class.java))},
-
+    stop={Settings.running=false;Settings.paused=false;stopService(Intent(this,CaptureService::class.java))}
    )
    handler.post(refresh)
    return
