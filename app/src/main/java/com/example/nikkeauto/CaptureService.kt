@@ -211,85 +211,6 @@ class CaptureService : Service() {
        Triple("map-boss",boss.x,boss.y)
       else -> null
      }
-     if(target!=null) {
-      noTargetSince=0L
-      if(lastTarget==target.first)stable++ else {lastTarget=target.first;stable=1}
-      val now=SystemClock.elapsedRealtime()
-      status("目標 ${target.first} @(${target.second.toInt()},${target.third.toInt()}) 確認 ${stable}/2")
-      val cooldown=when(target.first) {"map-monster","map-nav","map-boss"->6500L;"skip-visible"->1200L;else->1500L}
-      val requiredFrames=if(target.first=="skip-visible")1 else if(target.first=="failed-return")2 else 2
-      if(!Settings.paused && Settings.running && stable>=requiredFrames && now-lastTap>=cooldown) {
-       val tap=Settings.tap
-       if(tap!=null) {
-        if(tap.click(target.second,target.third)) {
-         Settings.taps++
-         status("已送出 ${target.first} 點擊，共 ${Settings.taps} 次")
-        }
-       lastTap=now
-       stable=0
-      }
-     } else {
-      stable=0;lastTarget=""
-      status("分析中：${Settings.frames} 張；劇情=${storyHud} SKIP文字=${visibleSkip!=null} SKIP圖=${skipIcon?.score ?: 0f} 地圖=${outdoorMap} 紅圈=${monster?.score ?: 0} 導航=${nav!=null} Boss=${boss!=null} 戰鬥=${battleScreen} 橘鍵=${orangeQuick!=null} 藍鍵=${blueEnter!=null} OCR: ${all.take(25)}")
-      if(failed && failureHandled){Settings.map=false;Settings.patrol=false;Settings.paused=true}
-      if(idleMap && Settings.patrol && !Settings.paused && Settings.running){
-       if(noTargetSince==0L)noTargetSince=nowMap
-       if(nowMap-noTargetSince>9000L && nowMap-lastTap>6500L){
-        val tap=Settings.tap
-        if(tap!=null){
-         // Zoom out once, then scan four directions. Minimap pink markers bias horizontal scan.
-         when(patrolStep++%5){
-          0->tap.zoomOut(w.toFloat(),h.toFloat())
-          1->if(mini<0)tap.swipe(w*.28f,h*.50f,w*.75f,h*.50f) else tap.swipe(w*.75f,h*.50f,w*.28f,h*.50f)
-          2->if(mini>0)tap.swipe(w*.75f,h*.50f,w*.28f,h*.50f) else tap.swipe(w*.28f,h*.50f,w*.75f,h*.50f)
-          3->tap.swipe(w*.50f,h*.72f,w*.50f,h*.30f)
-          else->tap.swipe(w*.50f,h*.30f,w*.50f,h*.72f)
-         }
-         lastTap=nowMap;noTargetSince=nowMap
-         status("巡弋視角 ${patrolStep%5}/5，小地圖方向=${mini}")
-        }
-       }
-      }else noTargetSince=0L
-     }
-   }
-   .addOnCompleteListener {busy=false;bitmap.recycle()}
- }
-
- private fun isBattlePanel(b:Bitmap):Boolean {
-  // White stage-detail panel at the bottom, plus blue enter button.
-  // Do not use blue-button detection alone on the exploration map.
-  val w=b.width;val h=b.height
-  var bright=0;var count=0
-  for(iy in 72..90 step 3) for(ix in 8..45 step 4) {
-   val x=(w*ix/100).coerceIn(0,w-1)
-   val y=(h*iy/100).coerceIn(0,h-1)
-   val c=b.getPixel(x,y)
-   if(Color.red(c)>215 && Color.green(c)>215 && Color.blue(c)>215)bright++
-   count++
-  }
-  return count>0 && bright.toFloat()/count>.72f
- }
- private fun isOrangeNear(bitmap:Bitmap,x:Int,y:Int):Boolean {
-  var hits=0;var total=0
-  val rx=(bitmap.width*.10f).toInt().coerceAtLeast(20)
-  val ry=(bitmap.height*.018f).toInt().coerceAtLeast(10)
-  for(dy in -ry..ry step 8) for(dx in -rx..rx step 8) {
-   val xx=x+dx;val yy=y+dy
-   if(xx in 0 until bitmap.width && yy in 0 until bitmap.height) {
-    val c=bitmap.getPixel(xx,yy)
-    val r=Color.red(c);val g=Color.green(c);val b=Color.blue(c)
-    total++;if(r>190 && g in 65..205 && b<125 && r>g+35)hits++
-   }
-  }
-  return total>0 && hits.toFloat()/total>.08f
- }
-
- override fun onDestroy(){
-  Settings.running=false;Settings.paused=false;Settings.status="已停止"
-  display?.release();reader?.close();projection?.stop();recognizer.close()
-  super.onDestroy()
- }
-}
       if(target!=null) {
        noTargetSince=0L
        if(lastTarget==target.first) stable++ else {lastTarget=target.first;stable=1}
@@ -338,3 +259,4 @@ class CaptureService : Service() {
      }
     }
     .addOnFailureListener {status("OCR 失敗: ${it.javaClass.simpleName}")}
+
