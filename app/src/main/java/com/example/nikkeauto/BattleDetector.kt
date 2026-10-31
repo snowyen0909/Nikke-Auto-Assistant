@@ -79,4 +79,51 @@ object BattleDetector {
   }
   return best
  }
+ /** Independently detect the enabled orange quick-battle button, including
+  * when OCR fails on its text. Restricted to the right-hand lower battle panel.
+  */
+ fun findOrangeQuickButton(b:Bitmap):Button? {
+  val w=b.width;val h=b.height
+  val step=max(2,min(w,h)/280)
+  val cols=(w+step-1)/step
+  val rows=(h+step-1)/step
+  val x0=(w*.45f/step).toInt()
+  val y0=(h*.65f/step).toInt()
+  val active=BooleanArray(cols*rows)
+  for(y in y0 until rows)for(x in x0 until cols) {
+   val c=b.getPixel(min(w-1,x*step),min(h-1,y*step))
+   val r=Color.red(c);val g=Color.green(c);val blue=Color.blue(c)
+   active[y*cols+x]=r>190 && g in 65..215 && blue<155 && r>g+35 && g>blue+15
+  }
+  val visited=BooleanArray(active.size)
+  val queue=IntArray(active.size)
+  var best:Button?=null
+  var bestScore=-1f
+  for(start in active.indices) {
+   if(!active[start] || visited[start])continue
+   var head=0;var tail=1;queue[0]=start;visited[start]=true
+   var minX=cols;var maxX=0;var minY=rows;var maxY=0;var count=0
+   while(head<tail) {
+    val i=queue[head++];val x=i%cols;val y=i/cols
+    minX=min(minX,x);maxX=max(maxX,x);minY=min(minY,y);maxY=max(maxY,y);count++
+    for(dy in -1..1)for(dx in -1..1) {
+     val nx=x+dx;val ny=y+dy
+     if(nx in x0 until cols && ny in y0 until rows) {
+      val ni=ny*cols+nx
+      if(active[ni] && !visited[ni]){visited[ni]=true;queue[tail++]=ni}
+     }
+    }
+   }
+   val boxW=(maxX-minX+1)*step;val boxH=(maxY-minY+1)*step
+   val density=count.toFloat()/((maxX-minX+1)*(maxY-minY+1))
+   val cx=(minX+maxX+1)*step*.5f
+   val cy=(minY+maxY+1)*step*.5f
+   if(boxW<w*.15f || boxW>w*.65f || boxH<h*.025f || boxH>h*.12f ||
+    density<.42f || cx<w*.55f || cy<h*.68f || cy>h*.96f)continue
+   val score=density*boxW*boxH
+   if(score>bestScore){bestScore=score;best=Button(cx.coerceAtMost(w-1f),cy.coerceAtMost(h-1f),density)}
+  }
+  return best
+ }
+
 }
