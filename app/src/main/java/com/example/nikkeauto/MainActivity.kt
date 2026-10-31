@@ -13,7 +13,8 @@ class MainActivity:Activity(){
  root.addView(TextView(this).apply{text="NIKKE Auto Assistant";textSize=24f})
  toggle("自動跳過劇情 / 結算",Settings.skip){Settings.skip=it}
  toggle("自動戰鬥確認",Settings.battle){Settings.battle=it}
- toggle("地圖目標偵測（實驗性）",Settings.map){Settings.map=it}
+ toggle("地圖自動尋敵與導航（實驗性）",Settings.map){Settings.map=it}
+ toggle("地圖巡弋 / 縮放（實驗性）",Settings.patrol){Settings.patrol=it}
  root.addView(Button(this).apply{text="1. 開啟無障礙服務";setOnClickListener{startActivity(Intent(AndroidSettings.ACTION_ACCESSIBILITY_SETTINGS))}})
  root.addView(Button(this).apply{text="2. 授權截圖並啟動";setOnClickListener{val mgr=getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager;startActivityForResult(mgr.createScreenCaptureIntent(),captureRequest)}})
  root.addView(Button(this).apply{text="停止";setOnClickListener{Settings.running=false;stopService(Intent(this@MainActivity,CaptureService::class.java))}})
