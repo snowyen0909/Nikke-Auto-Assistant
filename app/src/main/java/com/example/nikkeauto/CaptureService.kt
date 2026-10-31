@@ -68,6 +68,8 @@ class CaptureService : Service() {
  }
 
  override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+  if(intent?.action==ACTION_PAUSE){setPaused(true);return START_NOT_STICKY}
+  if(intent?.action==ACTION_RESUME){setPaused(false);return START_NOT_STICKY}
   val mgr = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
   mgr.createNotificationChannel(NotificationChannel(notificationChannel, "螢幕辨識狀態", NotificationManager.IMPORTANCE_LOW))
   startForeground(1, notification("正在初始化擷取"), ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION)
@@ -169,6 +171,11 @@ class CaptureService : Service() {
      val outdoorMap=!battleScreen && !storyScreen && !resultScreen &&
       (all.contains("野外") || all.contains("CURRENTAREA") || all.contains("NORMAL"))
      val monster=if(Settings.map && outdoorMap)MapDetector.redRingMonster(bitmap) else null
+     val nav=if(Settings.map && outdoorMap && monster==null)MapDetector.navigationDiamond(bitmap) else null
+     val boss=if(Settings.map && outdoorMap && monster==null && nav==null)MapDetector.bossPortal(bitmap) else null
+     val mini=if(Settings.map && outdoorMap)MapDetector.minimapEnemyDirection(bitmap) else 0
+     val idleMap=Settings.map && outdoorMap && monster==null && nav==null && boss==null
+     val nowMap=SystemClock.elapsedRealtime()
      val target:Triple<String,Float,Float>?=when {
       Settings.skip && popup -> Triple("upgrade-popup",w*.50f,h*.76f)
       Settings.skip && visibleSkip!=null -> Triple("skip-visible",skipTapX,skipTapY)
@@ -184,6 +191,10 @@ class CaptureService : Service() {
        Triple("enter",enter.second,enter.third)
       Settings.map && outdoorMap && monster!=null && monster.score>=9 ->
        Triple("map-monster",monster.x,monster.y)
+      Settings.map && outdoorMap && nav!=null ->
+       Triple("map-nav",nav.x,nav.y)
+      Settings.map && outdoorMap && boss!=null ->
+       Triple("map-boss",boss.x,boss.y)
       else -> null
      }
      if(target!=null) {
@@ -191,7 +202,7 @@ class CaptureService : Service() {
       if(lastTarget==target.first)stable++ else {lastTarget=target.first;stable=1}
       val now=SystemClock.elapsedRealtime()
       status("目標 ${target.first} @(${target.second.toInt()},${target.third.toInt()}) 確認 ${stable}/2")
-      val cooldown=when(target.first) {"map-monster"->6000L;"skip-visible"->1200L;else->1500L}
+      val cooldown=when(target.first) {"map-monster","map-nav","map-boss"->6500L;"skip-visible"->1200L;else->1500L}
       val requiredFrames=if(target.first=="skip-visible")1 else 2
       if(!Settings.paused && Settings.running && stable>=requiredFrames && now-lastTap>=cooldown) {
        val tap=Settings.tap
@@ -206,9 +217,25 @@ class CaptureService : Service() {
       }
      } else {
       stable=0;lastTarget=""
-      status("分析中：${Settings.frames} 張；劇情=${storyHud} SKIP文字=${visibleSkip!=null} SKIP圖=${skipIcon?.score ?: 0f} 地圖=${outdoorMap} 紅圈=${monster?.score ?: 0} 戰鬥=${battleScreen} 橘鍵=${orangeQuick!=null} 藍鍵=${blueEnter!=null} OCR: ${all.take(25)}")
-      // Map monster detection is not implemented yet. Do not patrol without a reliable map classifier.
-      noTargetSince=0L
+      status("分析中：${Settings.frames} 張；劇情=${storyHud} SKIP文字=${visibleSkip!=null} SKIP圖=${skipIcon?.score ?: 0f} 地圖=${outdoorMap} 紅圈=${monster?.score ?: 0} 導航=${nav!=null} Boss=${boss!=null} 戰鬥=${battleScreen} 橘鍵=${orangeQuick!=null} 藍鍵=${blueEnter!=null} OCR: ${all.take(25)}")
+      if(idleMap && Settings.patrol && !Settings.paused && Settings.running){
+       if(noTargetSince==0L)noTargetSince=nowMap
+       if(nowMap-noTargetSince>9000L && nowMap-lastTap>6500L){
+        val tap=Settings.tap
+        if(tap!=null){
+         // Zoom out once, then scan four directions. Minimap pink markers bias horizontal scan.
+         when(patrolStep++%5){
+          0->tap.zoomOut(w.toFloat(),h.toFloat())
+          1->if(mini<0)tap.swipe(w*.28f,h*.50f,w*.75f,h*.50f) else tap.swipe(w*.75f,h*.50f,w*.28f,h*.50f)
+          2->if(mini>0)tap.swipe(w*.75f,h*.50f,w*.28f,h*.50f) else tap.swipe(w*.28f,h*.50f,w*.75f,h*.50f)
+          3->tap.swipe(w*.50f,h*.72f,w*.50f,h*.30f)
+          else->tap.swipe(w*.50f,h*.30f,w*.50f,h*.72f)
+         }
+         lastTap=nowMap;noTargetSince=nowMap
+         status("巡弋視角 ${patrolStep%5}/5，小地圖方向=${mini}")
+        }
+       }
+      }else noTargetSince=0L
      }
     } catch(e:Exception) {status("辨識處理失敗: ${e.javaClass.simpleName}")}
    }
