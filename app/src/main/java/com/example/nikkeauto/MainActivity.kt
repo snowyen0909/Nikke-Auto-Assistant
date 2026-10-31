@@ -10,11 +10,6 @@ import android.widget.*
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
-import android.webkit.WebView
-import android.webkit.WebViewClient
-import android.webkit.JavascriptInterface
-import org.json.JSONObject
-import org.json.JSONArray
 
 class MainActivity:Activity(){
  private val captureRequest=100
@@ -47,13 +42,15 @@ OCR: ${Settings.lastRecognized.take(95)}""".trimIndent()
  }
  override fun onCreate(savedInstanceState:Bundle?){super.onCreate(savedInstanceState)
   if(BuildConfig.FLAVOR=="modern"){
-   val browser=WebView(this)
-   browser.settings.javaScriptEnabled=true
-   browser.settings.domStorageEnabled=true
-   browser.webViewClient=WebViewClient()
-   browser.addJavascriptInterface(AndroidBridge(),"NikkeAndroid")
-   setContentView(browser)
-   browser.loadUrl("file:///android_asset/nikke-auto-assistant.html")
+   modernStatus=ModernUi.create(this,
+    permissions={startActivity(Intent(AndroidSettings.ACTION_ACCESSIBILITY_SETTINGS))},
+    capture={askForCapture()},
+    test={testClick()},
+    pause={setPause(true)},
+    resume={if(Settings.running)setPause(false) else askForCapture()},
+    stop={Settings.running=false;Settings.paused=false;stopService(Intent(this,CaptureService::class.java))},
+    copyLogs={copyLogs()},clearLogs={EventLog.clear(this)}
+   )
    handler.post(refresh)
    return
   }
@@ -109,47 +106,6 @@ OCR: ${Settings.lastRecognized.take(95)}""".trimIndent()
   root.addView(TextView(this).apply{text="授權時請選擇「整個螢幕」，然後切換到遊戲。地圖尋敵與巡弋為實驗性功能。可透過通知列暫停／繼續；停止後須重新授權截圖。"})
   setContentView(ScrollView(this).apply{addView(root)})
   handler.post(refresh)
- }
- inner class AndroidBridge {
-  @JavascriptInterface fun snapshot():String {
-   val o=JSONObject()
-   o.put("running",Settings.running)
-   o.put("paused",Settings.paused)
-   o.put("accessibility",Settings.tap!=null)
-   o.put("frames",Settings.frames)
-   o.put("taps",Settings.taps)
-   o.put("status",Settings.status)
-   o.put("skip",Settings.skip)
-   o.put("battle",Settings.battle)
-   o.put("radar",Settings.map)
-   o.put("patrol",Settings.patrol)
-   o.put("logs",JSONArray(EventLog.recent().lines().filter{it.isNotBlank()}.takeLast(100)))
-   return o.toString()
-  }
-  @JavascriptInterface fun openAccessibility(){
-   runOnUiThread{startActivity(Intent(AndroidSettings.ACTION_ACCESSIBILITY_SETTINGS))}
-  }
-  @JavascriptInterface fun requestCapture(){runOnUiThread{askForCapture()}}
-  @JavascriptInterface fun resumeOrStart(){
-   runOnUiThread{if(Settings.running)setPause(false) else askForCapture()}
-  }
-  @JavascriptInterface fun pause(){runOnUiThread{setPause(true)}}
-  @JavascriptInterface fun stop(){
-   runOnUiThread{
-    Settings.running=false;Settings.paused=false
-    stopService(Intent(this@MainActivity,CaptureService::class.java))
-   }
-  }
-  @JavascriptInterface fun testTap(){runOnUiThread{testClick()}}
-  @JavascriptInterface fun setModule(id:String,on:Boolean){
-   when(id) {
-    "skip"->Settings.skip=on
-    "battle"->Settings.battle=on
-    "radar"->Settings.map=on
-    "patrol"->Settings.patrol=on
-   }
-  }
-  @JavascriptInterface fun clearLogs(){EventLog.clear(this@MainActivity)}
  }
  private fun copyLogs(){
   val clipboard=getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
