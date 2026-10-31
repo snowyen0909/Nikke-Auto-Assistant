@@ -1,64 +1,175 @@
 package com.example.nikkeauto
+
 import android.app.*
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.graphics.Bitmap
+import android.graphics.Color
 import android.graphics.PixelFormat
 import android.hardware.display.DisplayManager
 import android.media.ImageReader
+import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
 import android.os.*
+import android.view.WindowManager
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions
-class CaptureService:Service(){
- private val handler=Handler(Looper.getMainLooper())
- private val recognizer=TextRecognition.getClient(ChineseTextRecognizerOptions.Builder().build())
- private var reader:ImageReader?=null
- private var projection:android.media.projection.MediaProjection?=null
- private var busy=false
- private var lastTap=0L
- private var lastTarget=""
- private var stable=0
- private var noTargetSince=0L
- private var patrolStep=0
- override fun onBind(intent:Intent?)=null
- override fun onStartCommand(intent:Intent?,flags:Int,startId:Int):Int{
- val channel="capture";val manager=getSystemService(NOTIFICATION_SERVICE) as NotificationManager
- manager.createNotificationChannel(NotificationChannel(channel,"畫面辨識",NotificationManager.IMPORTANCE_LOW))
- val notification=Notification.Builder(this,channel).setSmallIcon(android.R.drawable.ic_menu_view).setContentTitle("NIKKE 自動化執行中").setContentText("點選 App 停止；螢幕畫面僅在裝置上分析").build()
- startForeground(1,notification,ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION)
- val data=if(Build.VERSION.SDK_INT>=33)intent?.getParcelableExtra("resultData",Intent::class.java) else @Suppress("DEPRECATION") intent?.getParcelableExtra<Intent>("resultData")
- if(data==null){stopSelf();return START_NOT_STICKY}
- val dm=resources.displayMetrics;val w=dm.widthPixels;val h=dm.heightPixels
- val mgr=getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
- projection=mgr.getMediaProjection(intent?.getIntExtra("resultCode",Activity.RESULT_CANCELED) ?: Activity.RESULT_CANCELED,data)
- projection?.registerCallback(object:android.media.projection.MediaProjection.Callback(){override fun onStop(){stopSelf()}},handler)
- reader=ImageReader.newInstance(w,h,PixelFormat.RGBA_8888,2)
- projection?.createVirtualDisplay("nikke-capture",w,h,dm.densityDpi,DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,reader!!.surface,null,handler)
- handler.post(object:Runnable{override fun run(){if(Settings.running) {capture(w,h);handler.postDelayed(this,650)}else stopSelf()}})
- return START_NOT_STICKY
+
+class CaptureService : Service() {
+ private val handler = Handler(Looper.getMainLooper())
+ private val recognizer = TextRecognition.getClient(ChineseTextRecognizerOptions.Builder().build())
+ private var reader: ImageReader? = null
+ private var projection: MediaProjection? = null
+ private var display: android.hardware.display.VirtualDisplay? = null
+ private var busy = false
+ private var lastTap = 0L
+ private var lastTarget = ""
+ private var stable = 0
+ private var noTargetSince = 0L
+ private var patrolStep = 0
+ private var lastNotify = 0L
+ private val notificationChannel = "capture"
+
+ override fun onBind(intent: Intent?): IBinder? = null
+
+ private fun status(s: String) {
+  Settings.status = s
+  val now = SystemClock.elapsedRealtime()
+  if (now - lastNotify >= 2500) {
+   lastNotify = now
+   val mgr = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+   mgr.notify(1, notification(s))
+  }
  }
- private fun capture(w:Int,h:Int){if(busy)return;val img=reader?.acquireLatestImage()?:return
- try{val plane=img.planes[0];val row=plane.rowStride;val px=plane.pixelStride;val bitmap=Bitmap.createBitmap(w+(row-w*px)/px,h,Bitmap.Config.ARGB_8888);bitmap.copyPixelsFromBuffer(plane.buffer);val cropped=Bitmap.createBitmap(bitmap,0,0,w,h);bitmap.recycle();busy=true
- recognizer.process(InputImage.fromBitmap(cropped,0)).addOnSuccessListener{result->
- val lines=result.textBlocks.flatMap{it.lines}.mapNotNull{line->line.boundingBox?.let{Triple(line.text,it.centerX().toFloat(),it.centerY().toFloat())}}
- val skip=lines.firstOrNull{it.first.contains("SKIP",true)}
- val next=lines.firstOrNull{it.first.contains("點擊任意處")||it.first.contains("进行下一步")}
- val quick=lines.firstOrNull{it.first.contains("快速戰鬥")||it.first.contains("快速战斗")}
- val enter=lines.firstOrNull{it.first.contains("進入戰鬥")||it.first.contains("进入战斗")}
- val stage=lines.any{it.first.contains("STAGE",true)}
- val target=when{
- Settings.skip && skip!=null -> Triple("skip",skip.second,skip.third)
- Settings.skip && next!=null -> Triple("next",w*0.50f,h*0.80f)
- Settings.battle && stage && quick!=null && isOrangeNear(cropped,quick.second.toInt(),quick.third.toInt()) -> Triple("quick",quick.second,quick.third)
- Settings.battle && stage && enter!=null -> Triple("enter",enter.second,enter.third)
- else -> null
+ private fun notification(s: String): Notification =
+  Notification.Builder(this, notificationChannel)
+   .setSmallIcon(android.R.drawable.ic_menu_view)
+   .setContentTitle("NIKKE Auto Assistant")
+   .setContentText(s)
+   .setOngoing(true).build()
+
+ override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+  val mgr = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+  mgr.createNotificationChannel(NotificationChannel(notificationChannel, "螢幕辨識狀態", NotificationManager.IMPORTANCE_LOW))
+  startForeground(1, notification("正在初始化擷取"), ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION)
+  val resultData: Intent? = if (Build.VERSION.SDK_INT >= 33)
+   intent?.getParcelableExtra("resultData", Intent::class.java)
+  else @Suppress("DEPRECATION") intent?.getParcelableExtra("resultData")
+  if (resultData == null) { status("螢幕擷取授權資料遺失"); stopSelf(); return START_NOT_STICKY }
+  val wm = getSystemService(WINDOW_SERVICE) as WindowManager
+  val bounds = wm.currentWindowMetrics.bounds
+  val w = bounds.width()
+  val h = bounds.height()
+  val dpi = resources.displayMetrics.densityDpi
+  if (w <= 0 || h <= 0) {status("螢幕尺寸無效");stopSelf();return START_NOT_STICKY}
+  val manager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+  try {
+   projection = manager.getMediaProjection(intent?.getIntExtra("resultCode", Activity.RESULT_CANCELED) ?: Activity.RESULT_CANCELED, resultData)
+   projection?.registerCallback(object:MediaProjection.Callback(){override fun onStop(){Settings.running=false;stopSelf()}},handler)
+   reader = ImageReader.newInstance(w, h, PixelFormat.RGBA_8888, 2)
+   display = projection?.createVirtualDisplay("NikkeCapture",w,h,dpi,DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,reader!!.surface,null,handler)
+   status("螢幕擷取已啟動，等待畫面")
+  } catch(e:Exception) {status("擷取啟動失敗: ${e.javaClass.simpleName}");stopSelf();return START_NOT_STICKY}
+  handler.post(object:Runnable {
+   override fun run() {
+    if (!Settings.running) {stopSelf();return}
+    capture(w,h)
+    handler.postDelayed(this,700)
+   }
+  })
+  return START_NOT_STICKY
  }
- if(target!=null){noTargetSince=0L;val key=target.first;if(key==lastTarget)stable++ else {lastTarget=key;stable=1};val now=SystemClock.elapsedRealtime();if(stable>=2 && now-lastTap>=1800){Settings.tap?.click(target.second,target.third);lastTap=now;stable=0}}
- else {stable=0;lastTarget="";if(Settings.patrol && Settings.map && !stage && skip==null && next==null){val now=SystemClock.elapsedRealtime();if(noTargetSince==0L)noTargetSince=now;if(now-noTargetSince>8000 && now-lastTap>2500){val tap=Settings.tap;if(tap!=null){when(patrolStep++%5){0->tap.zoomOut(w.toFloat(),h.toFloat());1->tap.swipe(w*.72f,h*.50f,w*.28f,h*.50f);2->tap.swipe(w*.28f,h*.50f,w*.72f,h*.50f);3->tap.swipe(w*.50f,h*.72f,w*.50f,h*.30f);else->tap.swipe(w*.50f,h*.30f,w*.50f,h*.72f)};lastTap=now;noTargetSince=now}}}else noTargetSince=0L}
- }.addOnCompleteListener{busy=false;cropped.recycle()}
- }finally{img.close()}}
- private fun isOrangeNear(bitmap:Bitmap,x:Int,y:Int):Boolean{var hits=0;var total=0;for(dy in -85..25 step 12)for(dx in -130..130 step 15){val xx=x+dx;val yy=y+dy;if(xx in 0 until bitmap.width && yy in 0 until bitmap.height){total++;val c=bitmap.getPixel(xx,yy);val r=android.graphics.Color.red(c);val g=android.graphics.Color.green(c);val b=android.graphics.Color.blue(c);if(r>190 && g in 60..195 && b<115 && r>g+35)hits++}};return total>0 && hits>total*.16}
- override fun onDestroy(){Settings.running=false;reader?.close();projection?.stop();recognizer.close();super.onDestroy()}
+
+ private fun capture(w:Int,h:Int) {
+  if (busy) return
+  val image = reader?.acquireLatestImage()
+  if (image == null) {status("等待螢幕畫面（若持續顯示，請重新授權整個螢幕）");return}
+  val bitmap: Bitmap
+  try {
+   val p = image.planes[0]
+   val strideWidth = p.rowStride / p.pixelStride
+   val raw = Bitmap.createBitmap(strideWidth,h,Bitmap.Config.ARGB_8888)
+   raw.copyPixelsFromBuffer(p.buffer)
+   bitmap = Bitmap.createBitmap(raw,0,0,w,h)
+   raw.recycle()
+  } catch(e:Exception) {status("擷取影像失敗: ${e.javaClass.simpleName}");return}
+  finally {image.close()}
+  busy = true
+  recognizer.process(InputImage.fromBitmap(bitmap,0))
+   .addOnSuccessListener { result ->
+    try {
+     Settings.frames++
+     val lines=result.textBlocks.flatMap { it.lines }.mapNotNull { line ->
+      line.boundingBox?.let { Triple(line.text, it.centerX().toFloat(), it.centerY().toFloat()) }
+     }
+     val all=lines.joinToString(" ") { it.first }.replace(" ","").uppercase()
+     Settings.lastRecognized=all.take(110)
+     val skip=lines.firstOrNull { it.first.contains("SKIP",true) && it.second>w*.48f && it.third<h*.22f }
+     val next=lines.firstOrNull {
+      val t=it.first.replace(" ","")
+      t.contains("點擊任意處") || t.contains("点击任意处") || t.contains("進行下一步") || t.contains("进行下一步")
+     }
+     val popup=all.contains("OUTPOST") || all.contains("DEFENSE") ||
+      all.contains("基地防禦") || all.contains("基地防御") || all.contains("升級獎勵") || all.contains("升级奖励")
+     val quick=lines.firstOrNull { it.first.replace(" ","").contains("快速戰鬥") || it.first.replace(" ","").contains("快速战斗") }
+     val enter=lines.firstOrNull { it.first.replace(" ","").contains("進入戰鬥") || it.first.replace(" ","").contains("进入战斗") }
+     val battleScreen=(quick!=null || enter!=null) && (all.contains("STAGE") || all.contains("戰力") || all.contains("战力"))
+     val target:Triple<String,Float,Float>?=when {
+      Settings.skip && popup && next!=null -> Triple("upgrade-popup",w*.50f,h*.74f)
+      Settings.skip && popup -> Triple("upgrade-popup",w*.50f,h*.76f)
+      Settings.skip && skip!=null -> Triple("skip",skip.second,skip.third)
+      Settings.skip && next!=null -> Triple("result-next",w*.50f,h*.77f)
+      Settings.battle && battleScreen && quick!=null && isOrangeNear(bitmap,quick.second.toInt(),quick.third.toInt()) ->
+       Triple("quick",quick.second,quick.third)
+      Settings.battle && battleScreen && enter!=null -> Triple("enter",enter.second,enter.third)
+      else -> null
+     }
+     if(target!=null) {
+      noTargetSince=0L
+      if(lastTarget==target.first)stable++ else {lastTarget=target.first;stable=1}
+      val now=SystemClock.elapsedRealtime()
+      status("辨識 ${target.first}，確認 ${stable}/2；畫面 ${Settings.frames} 張")
+      if(stable>=2 && now-lastTap>=1500L) {
+       val tap=Settings.tap
+       if(tap!=null) {
+        tap.click(target.second,target.third)
+        Settings.taps++
+        status("已送出 ${target.first} 點擊，共 ${Settings.taps} 次")
+       } else status("無障礙服務未連接：請檢查系統設定")
+       lastTap=now
+       stable=0
+      }
+     } else {
+      stable=0;lastTarget=""
+      status("分析中：${Settings.frames} 張；OCR: ${all.take(45)}")
+      // Map monster detection is not implemented yet. Do not patrol without a reliable map classifier.
+      noTargetSince=0L
+     }
+    } catch(e:Exception) {status("辨識處理失敗: ${e.javaClass.simpleName}")}
+   }
+   .addOnFailureListener {status("OCR 失敗: ${it.javaClass.simpleName}")}
+   .addOnCompleteListener {busy=false;bitmap.recycle()}
+ }
+
+ private fun isOrangeNear(bitmap:Bitmap,x:Int,y:Int):Boolean {
+  var hits=0;var total=0
+  val rx=(bitmap.width*.10f).toInt().coerceAtLeast(20)
+  val ry=(bitmap.height*.018f).toInt().coerceAtLeast(10)
+  for(dy in -ry..ry step 8) for(dx in -rx..rx step 8) {
+   val xx=x+dx;val yy=y+dy
+   if(xx in 0 until bitmap.width && yy in 0 until bitmap.height) {
+    val c=bitmap.getPixel(xx,yy)
+    val r=Color.red(c);val g=Color.green(c);val b=Color.blue(c)
+    total++;if(r>190 && g in 65..205 && b<125 && r>g+35)hits++
+   }
+  }
+  return total>0 && hits.toFloat()/total>.08f
+ }
+
+ override fun onDestroy(){
+  Settings.running=false;Settings.status="已停止"
+  display?.release();reader?.close();projection?.stop();recognizer.close()
+  super.onDestroy()
+ }
 }
