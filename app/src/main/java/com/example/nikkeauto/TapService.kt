@@ -17,5 +17,14 @@ class TapService:AccessibilityService(){
  dispatchGesture(GestureDescription.Builder().addStroke(GestureDescription.StrokeDescription(a,0,550)).addStroke(GestureDescription.StrokeDescription(b,0,550)).build(),null,null)
  }
  override fun onDestroy(){if(Settings.tap===this) Settings.tap=null;super.onDestroy()}
- fun click(x:Float,y:Float){ val path=Path().apply{moveTo(x,y)}; val gesture=GestureDescription.Builder().addStroke(GestureDescription.StrokeDescription(path,0,80)).build();dispatchGesture(gesture,null,null) }
+ fun click(x:Float,y:Float):Boolean {
+  val path=Path().apply{moveTo(x,y)}
+  val gesture=GestureDescription.Builder().addStroke(GestureDescription.StrokeDescription(path,0,90)).build()
+  val accepted=dispatchGesture(gesture,object:GestureResultCallback(){
+   override fun onCompleted(gestureDescription:GestureDescription){Settings.status="點擊已執行（x=${x.toInt()}, y=${y.toInt()}）"}
+   override fun onCancelled(gestureDescription:GestureDescription){Settings.status="點擊被系統取消，請檢查無障礙服務"}
+  },null)
+  if(!accepted) Settings.status="點擊派送失敗（dispatchGesture=false）"
+  return accepted
+ }
 }
