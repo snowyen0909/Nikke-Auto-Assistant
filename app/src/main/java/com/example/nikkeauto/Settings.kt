@@ -6,4 +6,8 @@ object Settings {
  @Volatile var patrol=false
  @Volatile var running=false
  @Volatile var tap:TapService?=null
+ @Volatile var status="未啟動"
+ @Volatile var lastRecognized=""
+ @Volatile var frames=0
+ @Volatile var taps=0
 }
