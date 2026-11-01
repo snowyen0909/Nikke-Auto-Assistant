@@ -118,75 +118,84 @@ object MapDetector {
  // 21x21 color/shape template extracted from the user's 79x81 icon reference.
  // C=cyan outline, W=white interior, D=dark exclamation, .=ignore.
  private val diamondTemplate=arrayOf(
-  ".....................",
-  ".....................",
-  "........CCCC.........",
-  ".......CCCCCC........",
-  "......CCCCCCCC.......",
-  ".....CCCCWW.CCC......",
-  "....CCCCWW.W.CCC.....",
-  "...CCCCWW.D.W.CCCC...",
-  "..CCCCWWW.DWWW.CCCC..",
-  "..CCCWWWW.DWWWW.CCC..",
-  ".CCCCWWWWWDWWWWWCCC.",
-  "..CCCWWWWWDWWWWCCCC.",
-  "..CCCCWWW.DWWWCCCCC.",
-  "...CCCC...D.WCCCCC...",
-  "....CCCCCDDDCCCC.....",
-  ".....CCCCCDCCCC......",
-  "......CCCCCCCC.......",
-  ".......CCCCCC........",
-  "........CCCC.........",
-  ".....................",
-  "....................."
+  "WWWWWWWWWWWWWWWWWWWWWWWWW",
+  "WWWWWWWWWWWWWWWWWWWWWWWWW",
+  "WWWWWWWWWWCCCCWWWWWWWWWWW",
+  "WWWWWWWWWCCWWCCWWWWWWWWWW",
+  "WWWWWWWWCCW..WCCWWWWWWWWW",
+  "WWWWWWWCCW.WW.WCCWWWWWWWW",
+  "WWWWWWCCW.WWWW.WCCWWWWWWW",
+  "WWWWWCCW.WWDDWW.WCCWWWWWW",
+  "WWWWCCW.WWWDDWWW.WCCWWWWW",
+  "WWWCWW.WWWWDDWWWW.WCCWWWW",
+  "WWCWW.WWWWWDDWWWWW.WCCWWW",
+  "WCCW.WWWWWWDDWWWWWWDWCWWW",
+  "WWCW.WWWWWWD.WWWWW..WCWWW",
+  "WWCCW.WWWWWDDWWWW..WCCWWW",
+  "WWWCCW.WWWWDDWWW..WCCWWWW",
+  "WWWWCCW.WW....W..WCCWWWWW",
+  "WWWWWCCW.DDDDDD.WCCWWWWWW",
+  "WWWWWWCCW..DDD.WCCWWWWWWW",
+  "WWWWWWWCCW.DDWWCCWWWWWWWW",
+  "WWWWWWWWCCWWWWCCWWWWWWWWW",
+  "WWWWWWWWWCCWCCWWWWWWWWWWW",
+  "WWWWWWWWWWCCCWWWWWWWWWWWW",
+  "WWWWWWWWWWWWWWWWWWWWWWWWW",
+  "WWWWWWWWWWWWWWWWWWWWWWWWW",
+  "WWWWWWWWWWWWWWWWWWWWWWWWW"
  )
  private fun diamondColor(p:Int):Char {
   val r=Color.red(p);val g=Color.green(p);val b=Color.blue(p)
-  if(b>117 && g>92 && b>r*1.16f && g>r*1.07f)return 'C'
-  if(r>176 && g>176 && b>176 && max(r,max(g,b))-min(r,min(g,b))<53)return 'W'
-  if(r<142 && g<151 && b<163)return 'D'
+  if(b>123 && g>112 && b>r*1.19f && g>r*1.12f)return 'C'
+  if(r>176 && g>176 && b>176)return 'W'
+  if(r<140 && g<148 && b<156)return 'D'
   return '.'
  }
- /** Multi-scale anchored reference matching, avoiding arbitrary blue scenery. */
+ /** The 25x25 sampled color/shape pattern above is derived from the actual
+  * uploaded icon. Only colored rim and inner exclamation are compared;
+  * surrounding W pixels are ignored because in-game backgrounds vary.
+  */
  fun navigationDiamond(b:Bitmap,mapExpanded:Boolean=false):Target? {
   val w=b.width;val h=b.height
-  if(w<100 || h<100)return null
-  var best:Target?=null
-  val stride=max(4,w/75)
-  // Icon diameter in the supplied 565px-wide screenshots is around 60px.
-  val sizes=intArrayOf((w*.092f).toInt(),(w*.115f).toInt(),(w*.145f).toInt())
+  if(w<160 || h<200)return null
+  val widthSamples=diamondTemplate[0].length
   val points=ArrayList<Triple<Int,Int,Char>>()
-  for(yy in diamondTemplate.indices)for(xx in diamondTemplate[yy].indices step 2){
-   val expected=diamondTemplate[yy][xx]
-   if(expected!='.')points.add(Triple(xx,yy,expected))
+  for(y in diamondTemplate.indices)for(x in 0 until widthSamples){
+   val ch=diamondTemplate[y][x]
+   // Ignore background white and ambiguous antialias pixels.
+   if(ch=='C' || ch=='D')points.add(Triple(x,y,ch))
   }
+  val sizes=intArrayOf((w*.085f).toInt(),(w*.105f).toInt(),
+   (w*.125f).toInt(),(w*.15f).toInt())
+  val stride=max(3,w/140)
+  var best:Target?=null
   for(size in sizes.distinct()){
    val half=size/2
-   for(cy in (h*.14f).toInt()..(h*.92f).toInt() step stride)
-    for(cx in (w*.045f).toInt()..(w*.95f).toInt() step stride){
+   for(cy in (h*.125f).toInt()..(h*.92f).toInt() step stride)
+    for(cx in (w*.06f).toInt()..(w*.94f).toInt() step stride){
      if(cx-half<0 || cx+half>=w || cy-half<0 || cy+half>=h)continue
      if(mapExpanded && cx<w*.45f && cy<h*.29f)continue
-     if(cx>w*.49f && cy<h*.17f)continue // top-right EVENT HUD
-     // Quick rejection using 4 diagonal cyan rim points.
-     var cyanRim=0
-     for((dx,dy) in arrayOf(-6 to 0,6 to 0,0 to -6,0 to 6)){
-      val x=cx+dx*size/20;val y=cy+dy*size/20
-      if(diamondColor(b.getPixel(x,y))=='C')cyanRim++
+     if(cx>w*.49f && cy<h*.17f)continue
+     // Fast cyan rim anchors from the supplied image.
+     var rim=0
+     for((dx,dy) in arrayOf(0 to -9,-9 to 0,9 to 0,0 to 9)){
+      val x=cx+dx*size/25;val y=cy+dy*size/25
+      if(diamondColor(b.getPixel(x,y))=='C')rim++
      }
-     if(cyanRim<2)continue
-     var match=0;var total=0;var cyanCount=0;var whiteCount=0;var darkCount=0
-     for((xx,yy,expected) in points){
-      val sx=cx+(xx-10)*size/20;val sy=cy+(yy-10)*size/20
-      val got=diamondColor(b.getPixel(sx,sy))
-      if(got==expected)match++
-      if(expected=='C' && got=='C')cyanCount++
-      if(expected=='W' && got=='W')whiteCount++
-      if(expected=='D' && got=='D')darkCount++
-      total++
+     if(rim<2)continue
+     var cyanOk=0;var cyanTotal=0;var darkOk=0;var darkTotal=0
+     for((x,y,ch) in points){
+      val xx=cx+(x-12)*size/25;val yy=cy+(y-12)*size/25
+      val got=diamondColor(b.getPixel(xx,yy))
+      if(ch=='C'){cyanTotal++;if(got=='C')cyanOk++}
+      else {darkTotal++;if(got=='D')darkOk++}
      }
-     if(total==0 || match.toFloat()/total<.68f ||
-       cyanCount<15 || whiteCount<10 || darkCount<2)continue
-     val score=match*100/total
+     if(cyanTotal==0 || darkTotal==0)continue
+     val cScore=cyanOk.toFloat()/cyanTotal
+     val dScore=darkOk.toFloat()/darkTotal
+     // Only accept distinctive complete icon, not arbitrary blue scenery.
+     if(cScore<.61f || dScore<.54f)continue
+     val score=((cScore*.7f+dScore*.3f)*100).toInt()
      if(best==null || score>best.score)best=Target(cx.toFloat(),cy.toFloat(),score)
     }
   }
