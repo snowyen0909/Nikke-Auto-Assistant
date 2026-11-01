@@ -176,4 +176,42 @@ object MapDetector {
   return if(sx/count < w*.105f)-1 else 1
  }
 
+ /** Expanded minimap covers upper-left field of view, including targets.
+  * Check both its blue panel and the white X in the upper-right corner.
+  * Layout varies with screen size, hence center is found from candidate scan.
+  */
+ fun expandedMinimap(b:Bitmap):Target? {
+  val w=b.width;val h=b.height
+  var best:Target?=null
+  val s=max(2,min(w,h)/230)
+  for(y in (h*.060f).toInt() until (h*.23f).toInt() step s*2)
+   for(x in (w*.25f).toInt() until (w*.48f).toInt() step s*2) {
+    val near=min(w,h)/65
+    if(x-near<0 || x+near>=w || y-near<0 || y+near>=h)continue
+    var white=0;var brightDiagonal=0
+    for(d in -near..near step max(1,near/4)){
+     val p1=b.getPixel(x+d,y+d)
+     val p2=b.getPixel(x+d,y-d)
+     val a=Color.red(p1)>195 && Color.green(p1)>195 && Color.blue(p1)>195
+     val bb=Color.red(p2)>195 && Color.green(p2)>195 && Color.blue(p2)>195
+     if(a)brightDiagonal++
+     if(bb)brightDiagonal++
+    }
+    if(brightDiagonal<9)continue
+    // Blue navigational pixels to the left/below the close button.
+    for(dy in near*2..near*5 step max(2,near/2))
+     for(dx in -near*8..-near*2 step max(2,near/2)) {
+      val xx=x+dx;val yy=y+dy
+      if(xx !in 0 until w || yy !in 0 until h)continue
+      val pixel=b.getPixel(xx,yy)
+      if(Color.blue(pixel)>Color.red(pixel)*1.3f &&
+         Color.blue(pixel)>Color.green(pixel)*1.1f)white++
+     }
+    if(white<7)continue
+    val score=brightDiagonal*3+white
+    if(best==null || score>best.score)best=Target(x.toFloat(),y.toFloat(),score)
+   }
+  return best
+ }
+
 }
