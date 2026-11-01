@@ -33,7 +33,6 @@ class CaptureService : Service() {
  private var lastLoggedAt = 0L
  private var failureHandled = false
  private var lastMinimapClose = 0L
- private var lastPadTap = 0L
  private var lastTargetX = -1f
  private var lastTargetY = -1f
  private val mapState=MapNavigationState()
@@ -255,7 +254,7 @@ class CaptureService : Service() {
        status("目標 ${target.first} @(${target.second.toInt()},${target.third.toInt()}) 確認 ${stable}/2")
        val cooldown=when(target.first){
         "map-nav","map-monster","close-minimap"->1000L
-        "map-boss","map-pad"->6500L
+        "map-boss"->6500L
         "skip-visible"->1200L
         else->1500L
        }
@@ -266,9 +265,7 @@ class CaptureService : Service() {
         val tap=Settings.tap
         if(tap!=null && tap.click(target.second,target.third)) {
          Settings.taps++
-         if(target.first=="map-nav" || target.first=="map-monster" || target.first=="close-minimap")mapState.onTapAccepted(target.first,now)
          if(target.first=="close-minimap")lastMinimapClose=now
-         if(target.first=="map-pad")lastPadTap=now
          status("已送出 ${target.first} 點擊，共 ${Settings.taps} 次")
          if(target.first=="failed-return") {
           failureHandled=true
@@ -283,7 +280,7 @@ class CaptureService : Service() {
       } else {
        stable=0;lastTarget=""
        status("分析中：${Settings.frames} 張；劇情=${storyHud} SKIP文字=${visibleSkip!=null} SKIP圖=${skipIcon?.score ?: 0f} 地圖=${outdoorMap} 紅圈=${monster?.score ?: 0} 導航=${offscreen!=null} 頭頂標記=${overhead!=null} 鏡頭移動=${mapState.isCameraMoving} Boss=${boss!=null} 戰鬥=${battleScreen} 橘鍵=${orangeQuick!=null} 藍鍵=${blueEnter!=null} OCR: ${all.take(25)}")
-       if(idleMap && pad==null && enlargedMap==null && mapState.canPatrol(nowMap) && Settings.patrol && !Settings.paused && Settings.running){
+       if(idleMap && enlargedMap==null && mapState.canPatrol(nowMap) && Settings.patrol && !Settings.paused && Settings.running){
         if(noTargetSince==0L)noTargetSince=nowMap
         if(nowMap-noTargetSince>9000L && nowMap-lastTap>6500L){
          val tap=Settings.tap
