@@ -266,6 +266,7 @@ class CaptureService : Service() {
         val tap=Settings.tap
         if(tap!=null && tap.click(target.second,target.third)) {
          Settings.taps++
+         if(target.first=="map-nav" || target.first=="map-monster" || target.first=="close-minimap")mapState.onTapAccepted(target.first,now)
          if(target.first=="close-minimap")lastMinimapClose=now
          if(target.first=="map-pad")lastPadTap=now
          status("已送出 ${target.first} 點擊，共 ${Settings.taps} 次")
