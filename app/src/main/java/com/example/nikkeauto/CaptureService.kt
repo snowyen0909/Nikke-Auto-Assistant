@@ -36,6 +36,7 @@ class CaptureService : Service() {
  private var lastPadTap = 0L
  private var lastTargetX = -1f
  private var lastTargetY = -1f
+ private val mapState=MapNavigationState()
  private val notificationChannel = "capture"
  private val ACTION_PAUSE="com.example.nikkeauto.PAUSE"
  private val ACTION_RESUME="com.example.nikkeauto.RESUME"
@@ -200,21 +201,29 @@ class CaptureService : Service() {
      val outdoorMap=!battleScreen && !storyScreen && !resultScreen &&
       (all.contains("野外") || all.contains("CURRENTAREA") ||
        all.contains("NORMAL") || detectedMinimap!=null)
-     // Selected blue-core encounters are more reliable than raw red components.
-     val blueCore=if(Settings.map && outdoorMap)MapDetector.blueCoreRedRing(bitmap) else null
-     val monster=if(Settings.map && outdoorMap)
-      blueCore ?: MapDetector.redRingMonster(bitmap) else null
-     val nav=if(Settings.map && outdoorMap && monster==null)MapDetector.navigationDiamond(bitmap,detectedMinimap!=null) else null
-     val boss=if(Settings.map && outdoorMap && monster==null && nav==null)MapDetector.bossPortal(bitmap) else null
-     val mini=if(Settings.map && outdoorMap)MapDetector.minimapEnemyDirection(bitmap) else 0
-     val idleMap=Settings.map && outdoorMap && monster==null && nav==null && boss==null
-     // The enlarged top-left minimap can hide a nearby diamond marker.
-     // Detect its top-right white X; close it once and rescan before patrol.
      val enlargedMap=detectedMinimap
-     // Ground pad only while navigating and only with unobstructed scene.
-     val pad=if(Settings.map && outdoorMap && enlargedMap==null &&
-       !battleScreen && !resultScreen)MapDetector.inactiveGroundPad(bitmap) else null
+     val blueCore=if(Settings.map && outdoorMap && enlargedMap==null)
+      MapDetector.blueCoreRedRing(bitmap) else null
+     val monster=if(Settings.map && outdoorMap && enlargedMap==null)
+      blueCore ?: MapDetector.redRingMonster(bitmap) else null
+     val marker=if(Settings.map && outdoorMap && enlargedMap==null)
+      MapDetector.navigationDiamond(bitmap) else null
+     val overhead=if(Settings.map && outdoorMap && monster==null)
+      MapDetector.overheadEnemyMarker(bitmap,marker) else null
+     val offscreen=if(overhead==null)marker else null
+     val boss=if(Settings.map && outdoorMap && monster==null && marker==null && enlargedMap==null)
+      MapDetector.bossPortal(bitmap) else null
+     val mini=if(Settings.map && outdoorMap)MapDetector.minimapEnemyDirection(bitmap) else 0
+     val pad=if(Settings.map && outdoorMap && monster==null && marker==null &&
+       enlargedMap==null)MapDetector.inactiveGroundPad(bitmap) else null
      val nowMap=SystemClock.elapsedRealtime()
+     // Map state machine has exclusive priority, including the overlay close.
+     val mapChoice=if(Settings.map && outdoorMap && !Settings.paused)
+      mapState.next(w,h,enlargedMap,monster,overhead,offscreen,nowMap) else null
+     val mapBusy=Settings.map && outdoorMap && (enlargedMap!=null ||
+      mapState.isCameraMoving || mapState.phase==MapNavigationState.Phase.CLOSING_MAP ||
+      mapState.phase==MapNavigationState.Phase.APPROACHING_MONSTER)
+     val idleMap=Settings.map && outdoorMap && monster==null && marker==null && boss==null
      val target:Triple<String,Float,Float>?=when {
       failed && !failureHandled -> Triple("failed-return",w*.16f,h*.943f)
       Settings.skip && popup -> Triple("upgrade-popup",w*.50f,h*.76f)
@@ -229,19 +238,13 @@ class CaptureService : Service() {
        Triple("enter",blueEnter.x,blueEnter.y)
       Settings.battle && battleScreen && enter!=null && enterState==BattleDetector.ColorState.BLUE ->
        Triple("enter",enter.second,enter.third)
-      Settings.map && outdoorMap && monster!=null && monster.score>=9 ->
-       Triple("map-monster",monster.x,monster.y)
-      Settings.map && outdoorMap && nav!=null && enlargedMap==null ->
-       Triple("map-nav",nav.x,nav.y)
-      // When no enemy or visible navigation diamond, close enlarged map first.
-      Settings.map && outdoorMap && monster==null &&
-       enlargedMap!=null && SystemClock.elapsedRealtime()-lastMinimapClose>10000L ->
-       Triple("close-minimap",enlargedMap.x,enlargedMap.y)
-      // Interactive unactivated pads are low-priority exploration targets.
-      Settings.map && outdoorMap && pad!=null && enlargedMap==null &&
-       SystemClock.elapsedRealtime()-lastPadTap>20000L ->
+      mapChoice!=null ->
+       Triple(mapChoice.kind,mapChoice.x,mapChoice.y)
+      mapBusy -> null
+      Settings.map && outdoorMap && mapState.canPatrol(nowMap) &&
+       pad!=null && nowMap-lastPadTap>20000L ->
        Triple("map-pad",pad.x,pad.y)
-      Settings.map && outdoorMap && boss!=null ->
+      Settings.map && outdoorMap && mapState.canPatrol(nowMap) && boss!=null ->
        Triple("map-boss",boss.x,boss.y)
       else -> null
      }
@@ -251,7 +254,9 @@ class CaptureService : Service() {
        val now=SystemClock.elapsedRealtime()
        status("目標 ${target.first} @(${target.second.toInt()},${target.third.toInt()}) 確認 ${stable}/2")
        val cooldown=when(target.first) {"map-monster","map-nav","map-boss","map-pad"->6500L;"skip-visible"->1200L;else->1500L}
-       val requiredFrames=if(target.first=="skip-visible")1 else 2
+       val requiredFrames=if(target.first=="skip-visible" ||
+        target.first=="close-minimap" || target.first=="map-nav" ||
+        target.first=="map-monster")1 else 2
        if(!Settings.paused && Settings.running && stable>=requiredFrames && now-lastTap>=cooldown) {
         val tap=Settings.tap
         if(tap!=null && tap.click(target.second,target.third)) {
@@ -272,7 +277,7 @@ class CaptureService : Service() {
       } else {
        stable=0;lastTarget=""
        status("分析中：${Settings.frames} 張；劇情=${storyHud} SKIP文字=${visibleSkip!=null} SKIP圖=${skipIcon?.score ?: 0f} 地圖=${outdoorMap} 紅圈=${monster?.score ?: 0} 導航=${nav!=null} Boss=${boss!=null} 戰鬥=${battleScreen} 橘鍵=${orangeQuick!=null} 藍鍵=${blueEnter!=null} OCR: ${all.take(25)}")
-       if(idleMap && pad==null && enlargedMap==null && Settings.patrol && !Settings.paused && Settings.running){
+       if(idleMap && pad==null && enlargedMap==null && mapState.canPatrol(nowMap) && Settings.patrol && !Settings.paused && Settings.running){
         if(noTargetSince==0L)noTargetSince=nowMap
         if(nowMap-noTargetSince>9000L && nowMap-lastTap>6500L){
          val tap=Settings.tap
