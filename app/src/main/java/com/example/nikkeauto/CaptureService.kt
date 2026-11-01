@@ -132,17 +132,6 @@ class CaptureService : Service() {
      }
      val all=lines.joinToString(" ") { it.first }.replace(" ","").uppercase()
      Settings.lastRecognized=all.take(110)
-     // Daily routine has exclusive priority over ordinary map/story automation.
-     if(Settings.dailyMode && DailyRoutine.active){
-      val action=DailyRoutine.decide(lines,w,h)
-      if(action!=null && Settings.running && !Settings.paused){
-       val sent=Settings.tap?.click(action.x,action.y) ?: false
-       if(sent)Settings.taps++
-      }
-      Settings.status=DailyRoutine.status
-      return@addOnSuccessListener
-     }
-     if(Settings.dailyMode && !DailyRoutine.active)Settings.dailyMode=false
      // OCR often merges "HIDE AUTO LOG SKIP" into ONE line. Its center is
      // near AUTO, not SKIP. Never tap the center of a merged toolbar line.
      val skip=lines.firstOrNull {
@@ -213,8 +202,6 @@ class CaptureService : Service() {
      val boss=if(Settings.map && outdoorMap && monster==null && marker==null && enlargedMap==null)
       MapDetector.bossPortal(bitmap) else null
      val mini=if(Settings.map && outdoorMap)MapDetector.minimapEnemyDirection(bitmap) else 0
-     val pad=if(Settings.map && outdoorMap && monster==null && marker==null &&
-       enlargedMap==null)MapDetector.inactiveGroundPad(bitmap) else null
      val nowMap=SystemClock.elapsedRealtime()
      // Map state machine has exclusive priority, including the overlay close.
      val mapChoice=if(Settings.map && outdoorMap && !Settings.paused)
@@ -240,9 +227,6 @@ class CaptureService : Service() {
       mapChoice!=null ->
        Triple(mapChoice.kind,mapChoice.x,mapChoice.y)
       mapBusy -> null
-      Settings.map && outdoorMap && mapState.canPatrol(nowMap) &&
-       pad!=null && nowMap-lastPadTap>20000L ->
-       Triple("map-pad",pad.x,pad.y)
       Settings.map && outdoorMap && mapState.canPatrol(nowMap) && boss!=null ->
        Triple("map-boss",boss.x,boss.y)
       else -> null
