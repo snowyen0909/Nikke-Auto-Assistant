@@ -182,34 +182,76 @@ object MapDetector {
   */
  fun expandedMinimap(b:Bitmap):Target? {
   val w=b.width;val h=b.height
+  // User reference: X at roughly (0.36 w, 0.08 h), in the upper-right
+  // corner of the large blue minimap. Verify the map panel, never tap blind.
+  val x=(w*.363f).toInt();val y=(h*.079f).toInt()
+  val r=max(4,(min(w,h)*.013f).toInt())
+  if(x-r<0 || x+r>=w || y-r<0 || y+r>=h)return null
+  var cross=0
+  for(d in -r..r step max(1,r/4)){
+   val p=b.getPixel(x+d,y+d);val q=b.getPixel(x+d,y-d)
+   if(Color.red(p)>185 && Color.green(p)>185 && Color.blue(p)>185)cross++
+   if(Color.red(q)>185 && Color.green(q)>185 && Color.blue(q)>185)cross++
+  }
+  if(cross<7)return null
+  // The blue filled geographic map occupies x=.04-.40 and y=.07-.23.
+  var blue=0;var sampled=0
+  for(yy in (h*.115f).toInt()..(h*.215f).toInt() step max(3,h/90))
+   for(xx in (w*.07f).toInt()..(w*.32f).toInt() step max(3,w/80)){
+    val p=b.getPixel(xx,yy)
+    if(Color.blue(p)>Color.red(p)*1.18f &&
+       Color.blue(p)>Color.green(p)*1.06f && Color.blue(p)>80)blue++
+    sampled++
+   }
+  return if(sampled>0 && blue>=12 && blue.toFloat()/sampled>.08f)
+   Target(x.toFloat(),y.toFloat(),cross+blue) else null
+ }
+ /** Unactivated ground pad in reference image 2: dark octagonal center and
+  * concentric metallic rings. Activated image 1 is distinctly bright.
+  * This is intentionally conservative to avoid tapping scenery.
+  */
+ fun inactiveGroundPad(b:Bitmap):Target? {
+  val w=b.width;val h=b.height
+  val scale=min(w,h)
   var best:Target?=null
-  val s=max(2,min(w,h)/230)
-  for(y in (h*.060f).toInt() until (h*.23f).toInt() step s*2)
-   for(x in (w*.25f).toInt() until (w*.48f).toInt() step s*2) {
-    val near=min(w,h)/65
-    if(x-near<0 || x+near>=w || y-near<0 || y+near>=h)continue
-    var white=0;var brightDiagonal=0
-    for(d in -near..near step max(1,near/4)){
-     val p1=b.getPixel(x+d,y+d)
-     val p2=b.getPixel(x+d,y-d)
-     val a=Color.red(p1)>195 && Color.green(p1)>195 && Color.blue(p1)>195
-     val bb=Color.red(p2)>195 && Color.green(p2)>195 && Color.blue(p2)>195
-     if(a)brightDiagonal++
-     if(bb)brightDiagonal++
-    }
-    if(brightDiagonal<9)continue
-    // Blue navigational pixels to the left/below the close button.
-    for(dy in near*2..near*5 step max(2,near/2))
-     for(dx in -near*8..-near*2 step max(2,near/2)) {
-      val xx=x+dx;val yy=y+dy
-      if(xx !in 0 until w || yy !in 0 until h)continue
-      val pixel=b.getPixel(xx,yy)
-      if(Color.blue(pixel)>Color.red(pixel)*1.3f &&
-         Color.blue(pixel)>Color.green(pixel)*1.1f)white++
+  // Exclude navigation HUD and expanded minimap.
+  for(y in (h*.28f).toInt() until (h*.82f).toInt() step max(10,scale/32))
+   for(x in (w*.17f).toInt() until (w*.85f).toInt() step max(10,scale/32)){
+    for(radius in intArrayOf(scale/17,scale/13,scale/10)){
+     if(x-radius<0 || x+radius>=w || y-radius<0 || y+radius>=h)continue
+     var centerBrightness=0f;var outerBrightness=0f
+     var centerN=0;var outerN=0;var metallic=0
+     for(k in 0 until 24){
+      val theta=k*Math.PI/12.0
+      val ix=x+(radius*.35*cos(theta)).toInt()
+      val iy=y+(radius*.35*.72*sin(theta)).toInt()
+      val ox=x+(radius*.92*cos(theta)).toInt()
+      val oy=y+(radius*.92*.72*sin(theta)).toInt()
+      val pc=b.getPixel(ix,iy);val po=b.getPixel(ox,oy)
+      val cr=Color.red(pc);val cg=Color.green(pc);val cb=Color.blue(pc)
+      val or=Color.red(po);val og=Color.green(po);val ob=Color.blue(po)
+      centerBrightness+=(cr+cg+cb)/3f;centerN++
+      outerBrightness+=(or+og+ob)/3f;outerN++
+      if(kotlin.math.abs(or-og)<29 && kotlin.math.abs(og-ob)<29)metallic++
      }
-    if(white<7)continue
-    val score=brightDiagonal*3+white
-    if(best==null || score>best.score)best=Target(x.toFloat(),y.toFloat(),score)
+     centerBrightness/=centerN;outerBrightness/=outerN
+     // Dark center of the unactivated pad; activated pad has pale center.
+     if(centerBrightness !in 28f..115f || outerBrightness !in 50f..165f)continue
+     if(metallic<16 || kotlin.math.abs(outerBrightness-centerBrightness)<13f)continue
+     // Require approximately symmetric outer ring, not a random dark patch.
+     var symmetry=0
+     for(k in 0 until 12){
+      val theta=k*Math.PI/6.0
+      val xx=x+(radius*.75*cos(theta)).toInt()
+      val yy=y+(radius*.75*.72*sin(theta)).toInt()
+      val px=b.getPixel(xx,yy)
+      val v=(Color.red(px)+Color.green(px)+Color.blue(px))/3f
+      if(kotlin.math.abs(v-outerBrightness)<50f)symmetry++
+     }
+     if(symmetry<9)continue
+     val score=metallic+symmetry
+     if(best==null || score>best.score)best=Target(x.toFloat(),y.toFloat(),score)
+    }
    }
   return best
  }
