@@ -202,8 +202,7 @@ class CaptureService : Service() {
      val idleMap=Settings.map && outdoorMap && monster==null && nav==null && boss==null
      // The enlarged top-left minimap can hide a nearby diamond marker.
      // Detect its top-right white X; close it once and rescan before patrol.
-     val enlargedMap=Settings.map && outdoorMap &&
-      MapDetector.expandedMinimap(bitmap)
+     val enlargedMap=if(Settings.map && outdoorMap)MapDetector.expandedMinimap(bitmap) else null
      val nowMap=SystemClock.elapsedRealtime()
      val target:Triple<String,Float,Float>?=when {
       failed && !failureHandled -> Triple("failed-return",w*.16f,h*.943f)
@@ -225,9 +224,9 @@ class CaptureService : Service() {
        Triple("map-nav",nav.x,nav.y)
       Settings.map && outdoorMap && boss!=null ->
        Triple("map-boss",boss.x,boss.y)
-      Settings.map && outdoorMap && idleMap && enlargedMap &&
+      Settings.map && outdoorMap && idleMap && enlargedMap!=null &&
        SystemClock.elapsedRealtime()-lastMinimapClose>10000L ->
-       Triple("close-minimap",w*.365f,h*.047f)
+       Triple("close-minimap",enlargedMap!!.x,enlargedMap.y)
       else -> null
      }
       if(target!=null) {
@@ -256,7 +255,7 @@ class CaptureService : Service() {
       } else {
        stable=0;lastTarget=""
        status("分析中：${Settings.frames} 張；劇情=${storyHud} SKIP文字=${visibleSkip!=null} SKIP圖=${skipIcon?.score ?: 0f} 地圖=${outdoorMap} 紅圈=${monster?.score ?: 0} 導航=${nav!=null} Boss=${boss!=null} 戰鬥=${battleScreen} 橘鍵=${orangeQuick!=null} 藍鍵=${blueEnter!=null} OCR: ${all.take(25)}")
-       if(idleMap && !enlargedMap && Settings.patrol && !Settings.paused && Settings.running){
+       if(idleMap && enlargedMap==null && Settings.patrol && !Settings.paused && Settings.running){
         if(noTargetSince==0L)noTargetSince=nowMap
         if(nowMap-noTargetSince>9000L && nowMap-lastTap>6500L){
          val tap=Settings.tap
