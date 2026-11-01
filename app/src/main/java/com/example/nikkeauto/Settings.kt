@@ -7,7 +7,11 @@ object Settings {
  @Volatile var running=false
  @Volatile var paused=false
  @Volatile var dailyMode=false
- @Volatile var dailyOutpost=true
+ @Volatile var dailyLogin=true
+ @Volatile var dailyMail=true
+ @Volatile var dailyShop=true
+ @Volatile var dailyUpgrade=false
+ @Volatile var dailyArena=false
  @Volatile var dailyDispatch=true
  @Volatile var dailyGift=true
  @Volatile var dailyFriends=true
