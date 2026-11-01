@@ -117,17 +117,21 @@ object MapDetector {
   */
  fun navigationDiamond(b:Bitmap,mapExpanded:Boolean=false):Target? {
   val w=b.width;val h=b.height
-  val step=max(2,min(w,h)/250)
+  val step=max(2,min(w,h)/260)
   val gw=(w+step-1)/step;val gh=(h+step-1)/step
   val mask=BooleanArray(gw*gh)
-  for(gy in (h*.115f).toInt()/step until min(gh,(h*.935f).toInt()/step))
-   for(gx in (w*.035f).toInt()/step until min(gw,(w*.96f).toInt()/step)){
+  fun cyan(px:Int,py:Int):Boolean {
+   if(px !in 0 until w || py !in 0 until h)return false
+   val p=b.getPixel(px,py)
+   val r=Color.red(p);val g=Color.green(p);val bl=Color.blue(p)
+   return bl>148 && g>105 && bl>r*1.25f && g>r*1.12f
+  }
+  for(gy in (h*.13f).toInt()/step until min(gh,(h*.925f).toInt()/step))
+   for(gx in (w*.035f).toInt()/step until min(gw,(w*.965f).toInt()/step)){
     val x=min(w-1,gx*step);val y=min(h-1,gy*step)
     if(mapExpanded && x<w*.44f && y<h*.28f)continue
-    if(y<h*.15f && x>w*.48f)continue // EVENT HUD
-    val p=b.getPixel(x,y)
-    val r=Color.red(p);val g=Color.green(p);val blue=Color.blue(p)
-    mask[gy*gw+gx]=blue>140 && g>95 && blue>r*1.22f && g>r*1.10f
+    if(y<h*.17f && x>w*.48f)continue
+    mask[gy*gw+gx]=cyan(x,y)
    }
   val seen=BooleanArray(mask.size)
   val queue=IntArray(mask.size)
@@ -137,7 +141,7 @@ object MapDetector {
    var head=0;var tail=1;queue[0]=i;seen[i]=true
    var minX=gw;var maxX=0;var minY=gh;var maxY=0
    while(head<tail){
-    val index=queue[head++];val x=index%gw;val y=index/gw
+    val idx=queue[head++];val x=idx%gw;val y=idx/gw
     minX=min(minX,x);maxX=max(maxX,x);minY=min(minY,y);maxY=max(maxY,y)
     for(dy in -1..1)for(dx in -1..1){
      val xx=x+dx;val yy=y+dy
@@ -148,26 +152,39 @@ object MapDetector {
     }
    }
    val bw=(maxX-minX+1)*step;val bh=(maxY-minY+1)*step
-   if(bw<w*.045f || bw>w*.23f || bh<w*.045f || bh>w*.23f)continue
-   val aspect=bw.toFloat()/bh
-   if(aspect !in .54f..1.90f || tail<10)continue
-   val cx=((minX+maxX)*step/2).coerceIn(0,w-1)
-   val cy=((minY+maxY)*step/2).coerceIn(0,h-1)
-   var white=0;var dark=0;var count=0
-   val radius=min(bw,bh)/4
-   for(y in cy-radius..cy+radius step max(2,step))
-    for(x in cx-radius..cx+radius step max(2,step)){
-     if(x !in 0 until w || y !in 0 until h)continue
+   // Refuse blue buildings/roads and thin arrow-only strokes.
+   if(bw !in (w*.055f).toInt()..(w*.16f).toInt())continue
+   if(bh !in (w*.055f).toInt()..(w*.19f).toInt())continue
+   if(bw.toFloat()/bh !in .66f..1.35f || tail<12)continue
+   val x0=minX*step;val x1=min(w-1,(maxX+1)*step)
+   val y0=minY*step;val y1=min(h-1,(maxY+1)*step)
+   // Locate the WHITE inner diamond, not the cyan cluster centroid:
+   // a downward pointer attached to the frame otherwise shifts tap downward.
+   var whiteX=0L;var whiteY=0L;var white=0
+   var dark=0
+   val mx=(x0+x1)/2;val my=(y0+y1)/2
+   for(y in (my-bh/4).coerceAtLeast(0)..(my+bh/5).coerceAtMost(h-1) step max(1,step))
+    for(x in (mx-bw/4).coerceAtLeast(0)..(mx+bw/4).coerceAtMost(w-1) step max(1,step)){
      val p=b.getPixel(x,y)
-     val r=Color.red(p);val g=Color.green(p);val blue=Color.blue(p)
-     if(r>185 && g>185 && blue>185)white++
-     if(r<110 && g<125 && blue<140)dark++
-     count++
+     val r=Color.red(p);val g=Color.green(p);val bl=Color.blue(p)
+     if(r>192 && g>192 && bl>192){whiteX+=x;whiteY+=y;white++}
+     if(r<110 && g<120 && bl<135)dark++
     }
-   if(count==0 || white<2 || dark<1)continue
-   // Skip the blue return/home HUD in the bottom navigation bar.
-   if(cy>h*.93f)continue
-   val score=tail+white*2
+   if(white<4 || dark<2)continue
+   val cx=(whiteX/white).toInt();val cy=(whiteY/white).toInt()
+   if(cy<h*.14f || cy>h*.91f)continue
+   // Require cyan surrounding white on both axes at a comparable distance.
+   val reach=(min(bw,bh)*.42f).toInt()
+   var directions=0
+   for((dx,dy) in arrayOf(0 to -1,0 to 1,-1 to 0,1 to 0)){
+    var hit=false
+    for(rad in (reach/2).coerceAtLeast(3)..reach step max(1,step)){
+     if(cyan(cx+dx*rad,cy+dy*rad)){hit=true;break}
+    }
+    if(hit)directions++
+   }
+   if(directions<3)continue
+   val score=white*2+tail+directions*10
    if(best==null || score>best.score)best=Target(cx.toFloat(),cy.toFloat(),score)
   }
   return best
