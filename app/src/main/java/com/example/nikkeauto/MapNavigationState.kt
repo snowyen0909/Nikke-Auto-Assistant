@@ -21,6 +21,7 @@ class MapNavigationState {
  private var stable=0
  private var lastNavigation=0L
  private var lastClose=0L
+ private var closeAttempts=0
  private var lastMonster=0L
  private var noTargetSince=0L
  private var lastNavX=-1f
@@ -33,7 +34,7 @@ class MapNavigationState {
  fun reset(){
   phase=Phase.SCANNING;isCameraMoving=false;until=0L
   stableKind="";stable=0;noTargetSince=0L
-  retryCount=0;lastNavX=-1f;lastNavY=-1f
+  closeAttempts=0;retryCount=0;lastNavX=-1f;lastNavY=-1f
   previousNavX=-1f;previousNavY=-1f;monsterSearchUntil=0L
  }
 
@@ -61,9 +62,15 @@ class MapNavigationState {
   // The expanded minimap must always be closed before map interaction.
   if(minimap!=null){
    noTargetSince=0L
+   if(closeAttempts>=3){
+    Settings.paused=true
+    Settings.status="無法關閉小地圖，已暫停避免誤點；請手動關閉後繼續"
+    return null
+   }
    if(now-lastClose<2800L)return null
    return confirm("close-minimap",minimap,width,height,2)
   }
+  closeAttempts=0
   val immediate=monster ?: marker
   // A jump must be followed by a sustained search for the monster, NOT another jump.
   if(now<monsterSearchUntil || phase==Phase.AWAITING_MONSTER){
@@ -108,7 +115,10 @@ class MapNavigationState {
  fun onTapAccepted(kind:String,x:Float,y:Float,now:Long=SystemClock.elapsedRealtime()){
   stableKind="";stable=0
   when(kind){
-   "close-minimap"->{lastClose=now;phase=Phase.CLOSING_MAP;until=now+1200L}
+   "close-minimap"->{
+    lastClose=now;closeAttempts++
+    phase=Phase.CLOSING_MAP;until=now+1200L
+   }
    "map-monster"->{
     lastMonster=now;phase=Phase.APPROACHING_MONSTER;until=now+2500L
     retryCount=0;previousNavX=-1f;previousNavY=-1f
