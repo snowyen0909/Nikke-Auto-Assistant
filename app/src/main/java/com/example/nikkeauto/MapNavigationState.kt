@@ -60,16 +60,18 @@ class MapNavigationState {
     lastClose=now;phase=Phase.CLOSING_MAP;until=now+1100L
    }
   }
-  // Priority 1: visible monster red ring or an exclamation above its body.
+  // After a navigation jump, engage the newly revealed monster first.
+  // This prevents tapping a still-visible offscreen marker repeatedly.
   val immediate=monster ?: marker
-  if(immediate!=null){
+  if(phase==Phase.AWAITING_MONSTER && immediate!=null){
    noTargetSince=0L
    if(now-lastMonster<2200L)return null
    return confirm("map-monster",immediate,width,height,2)?.also {
     lastMonster=now;phase=Phase.APPROACHING_MONSTER;until=now+1800L
    }
   }
-  // Priority 2: offscreen arrow / blue diamond leads to a camera jump.
+  // Priority 1: blue diamond / offscreen direction marker.
+  // If an enemy also appears, navigate to the marked destination first.
   if(offscreen!=null){
    noTargetSince=0L
    if(now-lastNavigation<2300L)return null
@@ -78,6 +80,14 @@ class MapNavigationState {
     phase=Phase.CAMERA_MOVING
     isCameraMoving=true
     until=now+1050L
+   }
+  }
+  // Priority 2: a visible red-ring monster, or diamond above its body.
+  if(immediate!=null){
+   noTargetSince=0L
+   if(now-lastMonster<2200L)return null
+   return confirm("map-monster",immediate,width,height,2)?.also {
+    lastMonster=now;phase=Phase.APPROACHING_MONSTER;until=now+1800L
    }
   }
   // Wait for the new camera frame after transition; then patrol if needed.
