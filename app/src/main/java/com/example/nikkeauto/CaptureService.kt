@@ -203,6 +203,9 @@ class CaptureService : Service() {
      // The enlarged top-left minimap can hide a nearby diamond marker.
      // Detect its top-right white X; close it once and rescan before patrol.
      val enlargedMap=if(Settings.map && outdoorMap)MapDetector.expandedMinimap(bitmap) else null
+     // Ground pad only while navigating and only with unobstructed scene.
+     val pad=if(Settings.map && outdoorMap && enlargedMap==null &&
+       !battleScreen && !resultScreen)MapDetector.inactiveGroundPad(bitmap) else null
      val nowMap=SystemClock.elapsedRealtime()
      val target:Triple<String,Float,Float>?=when {
       failed && !failureHandled -> Triple("failed-return",w*.16f,h*.943f)
@@ -222,11 +225,15 @@ class CaptureService : Service() {
        Triple("map-monster",monster.x,monster.y)
       Settings.map && outdoorMap && nav!=null ->
        Triple("map-nav",nav.x,nav.y)
+      // When no enemy or visible navigation diamond, close enlarged map first.
+      Settings.map && outdoorMap && monster==null && nav==null &&
+       enlargedMap!=null && SystemClock.elapsedRealtime()-lastMinimapClose>10000L ->
+       Triple("close-minimap",enlargedMap.x,enlargedMap.y)
+      // Interactive unactivated pads are low-priority exploration targets.
+      Settings.map && outdoorMap && pad!=null && enlargedMap==null ->
+       Triple("map-pad",pad.x,pad.y)
       Settings.map && outdoorMap && boss!=null ->
        Triple("map-boss",boss.x,boss.y)
-      Settings.map && outdoorMap && idleMap && enlargedMap!=null &&
-       SystemClock.elapsedRealtime()-lastMinimapClose>10000L ->
-       Triple("close-minimap",enlargedMap!!.x,enlargedMap.y)
       else -> null
      }
       if(target!=null) {
@@ -234,7 +241,7 @@ class CaptureService : Service() {
        if(lastTarget==target.first) stable++ else {lastTarget=target.first;stable=1}
        val now=SystemClock.elapsedRealtime()
        status("目標 ${target.first} @(${target.second.toInt()},${target.third.toInt()}) 確認 ${stable}/2")
-       val cooldown=when(target.first) {"map-monster","map-nav","map-boss"->6500L;"skip-visible"->1200L;else->1500L}
+       val cooldown=when(target.first) {"map-monster","map-nav","map-boss","map-pad"->6500L;"skip-visible"->1200L;else->1500L}
        val requiredFrames=if(target.first=="skip-visible")1 else 2
        if(!Settings.paused && Settings.running && stable>=requiredFrames && now-lastTap>=cooldown) {
         val tap=Settings.tap
@@ -255,7 +262,7 @@ class CaptureService : Service() {
       } else {
        stable=0;lastTarget=""
        status("分析中：${Settings.frames} 張；劇情=${storyHud} SKIP文字=${visibleSkip!=null} SKIP圖=${skipIcon?.score ?: 0f} 地圖=${outdoorMap} 紅圈=${monster?.score ?: 0} 導航=${nav!=null} Boss=${boss!=null} 戰鬥=${battleScreen} 橘鍵=${orangeQuick!=null} 藍鍵=${blueEnter!=null} OCR: ${all.take(25)}")
-       if(idleMap && enlargedMap==null && Settings.patrol && !Settings.paused && Settings.running){
+       if(idleMap && pad==null && enlargedMap==null && Settings.patrol && !Settings.paused && Settings.running){
         if(noTargetSince==0L)noTargetSince=nowMap
         if(nowMap-noTargetSince>9000L && nowMap-lastTap>6500L){
          val tap=Settings.tap
