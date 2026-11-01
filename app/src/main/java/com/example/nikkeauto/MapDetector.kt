@@ -112,36 +112,80 @@ object MapDetector {
  /** Candidate blue/cyan exclamation markers inside the map, excluding HUD/minimap.
   * Verify a bright white center surrounded by cyan-blue pixels.
   */
- fun navigationDiamond(b:Bitmap, mapExpanded:Boolean=false):Target? {
+ /** Cyan-bordered diamond exclamation; return center, not an arbitrary cyan pixel.
+  * Shared for overhead enemy markers and offscreen camera-navigation markers.
+  */
+ fun navigationDiamond(b:Bitmap,mapExpanded:Boolean=false):Target? {
   val w=b.width;val h=b.height
-  // Navigation icons can appear in the upper LEFT after the minimap closes.
-  // The former x<24%, y<32% exclusion blocked these real destinations.
-  val s=max(3,min(w,h)/190)
-  var best:Target?=null
-  for(y in (h*.115f).toInt() until (h*.84f).toInt() step s)
-   for(x in (w*.045f).toInt() until (w*.94f).toInt() step s){
-    if(mapExpanded && x<w*.45f && y<h*.30f)continue
-    // Avoid permanent currency/HUD strip and top-right EVENT button.
-    if(y<h*.12f || (x>w*.51f && y<h*.18f))continue
-    val center=b.getPixel(x,y)
-    val cr=Color.red(center);val cg=Color.green(center);val cb=Color.blue(center)
-    if(!(cb>145 && cg>110 && cb>cr*1.30f && cg>cr*1.10f))continue
-    val r=max(7,min(w,h)/70)
-    var cyan=0;var white=0
-    for(dy in -r..r step max(2,r/3))for(dx in -r..r step max(2,r/3)){
-     val xx=x+dx;val yy=y+dy
-     if(xx !in 0 until w || yy !in 0 until h)continue
-     val p=b.getPixel(xx,yy)
-     val red=Color.red(p);val green=Color.green(p);val blue=Color.blue(p)
-     if(blue>145 && green>110 && blue>red*1.25f && green>red*1.12f)cyan++
-     if(red>195 && green>195 && blue>195)white++
-    }
-    if(cyan<5 || white<1)continue
-    val score=cyan*2+white
-    if(best==null || score>best.score)best=Target(x.toFloat(),y.toFloat(),score)
+  val step=max(2,min(w,h)/250)
+  val gw=(w+step-1)/step;val gh=(h+step-1)/step
+  val mask=BooleanArray(gw*gh)
+  for(gy in (h*.115f).toInt()/step until min(gh,(h*.83f).toInt()/step))
+   for(gx in (w*.035f).toInt()/step until min(gw,(w*.96f).toInt()/step)){
+    val x=min(w-1,gx*step);val y=min(h-1,gy*step)
+    if(mapExpanded && x<w*.44f && y<h*.28f)continue
+    if(y<h*.15f && x>w*.48f)continue // EVENT HUD
+    val p=b.getPixel(x,y)
+    val r=Color.red(p);val g=Color.green(p);val blue=Color.blue(p)
+    mask[gy*gw+gx]=blue>150 && g>105 && blue>r*1.30f && g>r*1.18f
    }
-  return best?.takeIf{it.score>=12}
+  val seen=BooleanArray(mask.size)
+  val queue=IntArray(mask.size)
+  var best:Target?=null
+  for(i in mask.indices){
+   if(!mask[i] || seen[i])continue
+   var head=0;var tail=1;queue[0]=i;seen[i]=true
+   var minX=gw;var maxX=0;var minY=gh;var maxY=0
+   while(head<tail){
+    val index=queue[head++];val x=index%gw;val y=index/gw
+    minX=min(minX,x);maxX=max(maxX,x);minY=min(minY,y);maxY=max(maxY,y)
+    for(dy in -1..1)for(dx in -1..1){
+     val xx=x+dx;val yy=y+dy
+     if(xx in 0 until gw && yy in 0 until gh){
+      val j=yy*gw+xx
+      if(mask[j] && !seen[j]){seen[j]=true;queue[tail++]=j}
+     }
+    }
+   }
+   val bw=(maxX-minX+1)*step;val bh=(maxY-minY+1)*step
+   if(bw<w*.045f || bw>w*.23f || bh<w*.045f || bh>w*.23f)continue
+   val aspect=bw.toFloat()/bh
+   if(aspect !in .68f..1.48f || tail<12)continue
+   val cx=((minX+maxX)*step/2).coerceIn(0,w-1)
+   val cy=((minY+maxY)*step/2).coerceIn(0,h-1)
+   var white=0;var dark=0;var count=0
+   val radius=min(bw,bh)/4
+   for(y in cy-radius..cy+radius step max(2,step))
+    for(x in cx-radius..cx+radius step max(2,step)){
+     if(x !in 0 until w || y !in 0 until h)continue
+     val p=b.getPixel(x,y)
+     val r=Color.red(p);val g=Color.green(p);val blue=Color.blue(p)
+     if(r>185 && g>185 && blue>185)white++
+     if(r<110 && g<125 && blue<140)dark++
+     count++
+    }
+   if(count==0 || white<2 || dark<1)continue
+   val score=tail+white*2
+   if(best==null || score>best.score)best=Target(cx.toFloat(),cy.toFloat(),score)
+  }
+  return best
  }
+ /** Marker above a directly visible enemy: a red combat ring just below it. */
+ fun overheadEnemyMarker(b:Bitmap,marker:Target?):Target? {
+  if(marker==null)return null
+  val w=b.width;val h=b.height
+  var reds=0
+  val x=marker.x.toInt();val y=marker.y.toInt()
+  for(dy in (w*.08f).toInt()..(w*.30f).toInt() step max(3,w/90))
+   for(dx in -(w*.17f).toInt()..(w*.17f).toInt() step max(3,w/100)){
+    val xx=x+dx;val yy=y+dy
+    if(xx !in 0 until w || yy !in 0 until h)continue
+    val p=b.getPixel(xx,yy);val r=Color.red(p);val g=Color.green(p);val bl=Color.blue(p)
+    if(r>140 && r>g*1.3f && r>bl*1.3f && g>35)reds++
+   }
+  return if(reds>=5)Target(marker.x,(marker.y+w*.18f).coerceAtMost(h*.83f),reds) else null
+ }
+
  /** Boss portal: broad saturated red/orange glowing ground zone, not a tiny enemy ring. */
  fun bossPortal(b:Bitmap):Target? {
   val w=b.width;val h=b.height
