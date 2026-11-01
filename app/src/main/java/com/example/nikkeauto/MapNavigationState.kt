@@ -4,8 +4,8 @@ import android.os.SystemClock
 import kotlin.math.abs
 
 /**
- * Exclusive map navigation state machine. A target click must be followed
- * by fresh frames; camera transitions cannot be tapped again immediately.
+ * Prevents infinite camera ping-pong while prioritizing a blue navigation diamond.
+ * State transitions happen only after a gesture is accepted for dispatch.
  */
 class MapNavigationState {
  enum class Phase { SCANNING, CLOSING_MAP, CAMERA_MOVING, AWAITING_MONSTER, APPROACHING_MONSTER }
@@ -23,11 +23,18 @@ class MapNavigationState {
  private var lastClose=0L
  private var lastMonster=0L
  private var noTargetSince=0L
- private var attempts=0
+ private var lastNavX=-1f
+ private var lastNavY=-1f
+ private var retryCount=0
+ private var previousNavX=-1f
+ private var previousNavY=-1f
+ private var monsterSearchUntil=0L
 
  fun reset(){
   phase=Phase.SCANNING;isCameraMoving=false;until=0L
-  stableKind="";stable=0;noTargetSince=0L;attempts=0
+  stableKind="";stable=0;noTargetSince=0L
+  retryCount=0;lastNavX=-1f;lastNavY=-1f
+  previousNavX=-1f;previousNavY=-1f;monsterSearchUntil=0L
  }
 
  fun next(
@@ -40,66 +47,88 @@ class MapNavigationState {
  ):Choice? {
   if(isCameraMoving){
    if(now<until)return null
-   isCameraMoving=false
-   phase=Phase.AWAITING_MONSTER
+   isCameraMoving=false;phase=Phase.AWAITING_MONSTER
    stable=0;stableKind=""
   }
   if(phase==Phase.CLOSING_MAP){
    if(now<until)return null
-   phase=Phase.SCANNING
-   stable=0;stableKind=""
+   phase=Phase.SCANNING;stable=0;stableKind=""
   }
-  if(phase==Phase.APPROACHING_MONSTER && now<until)return null
-  if(phase==Phase.APPROACHING_MONSTER)phase=Phase.SCANNING
-
-  // Overlay always wins, even if something underneath resembles a monster.
+  if(phase==Phase.APPROACHING_MONSTER){
+   if(now<until)return null
+   phase=Phase.SCANNING
+  }
+  // The expanded minimap must always be closed before map interaction.
   if(minimap!=null){
    noTargetSince=0L
-   if(now-lastClose<2300L)return null
-   return confirm("close-minimap",minimap,width,height,1)?.also {
-    lastClose=now;phase=Phase.CLOSING_MAP;until=now+1100L
-   }
+   if(now-lastClose<2800L)return null
+   return confirm("close-minimap",minimap,width,height,2)
   }
-  // After a navigation jump, engage the newly revealed monster first.
-  // This prevents tapping a still-visible offscreen marker repeatedly.
   val immediate=monster ?: marker
-  if(phase==Phase.AWAITING_MONSTER && immediate!=null){
-   noTargetSince=0L
-   if(now-lastMonster<2200L)return null
-   return confirm("map-monster",immediate,width,height,2)?.also {
-    lastMonster=now;phase=Phase.APPROACHING_MONSTER;until=now+1800L
+  // A jump must be followed by a sustained search for the monster, NOT another jump.
+  if(now<monsterSearchUntil || phase==Phase.AWAITING_MONSTER){
+   if(immediate!=null && now-lastMonster>2000L){
+    noTargetSince=0L
+    return confirm("map-monster",immediate,width,height,2)
    }
-  }
-  // Priority 1: blue diamond / offscreen direction marker.
-  // If an enemy also appears, navigate to the marked destination first.
-  if(offscreen!=null){
-   noTargetSince=0L
-   if(now-lastNavigation<2300L)return null
-   return confirm("map-nav",offscreen,width,height,2)?.also {
-    lastNavigation=now
-    phase=Phase.CAMERA_MOVING
-    isCameraMoving=true
-    until=now+1050L
+   if(now<monsterSearchUntil){
+    stableKind="";stable=0
+    return null
    }
+   phase=Phase.SCANNING
   }
-  // Priority 2: a visible red-ring monster, or diamond above its body.
-  if(immediate!=null){
-   noTargetSince=0L
-   if(now-lastMonster<2200L)return null
-   return confirm("map-monster",immediate,width,height,2)?.also {
-    lastMonster=now;phase=Phase.APPROACHING_MONSTER;until=now+1800L
+  // User preference: navigate to a blue diamond before ordinary red-ring targets.
+  if(offscreen!=null && now-lastNavigation>=3500L){
+   val sameAsLast=lastNavX>=0f &&
+    abs(offscreen.x-lastNavX)<width*.13f &&
+    abs(offscreen.y-lastNavY)<height*.12f
+   val reverse=previousNavX>=0f &&
+    abs(offscreen.x-previousNavX)<width*.13f &&
+    abs(offscreen.y-previousNavY)<height*.12f
+   // Repeated or alternating navigation directions are likely a loop.
+   if((sameAsLast && retryCount>=1) || reverse){
+    if(immediate!=null && now-lastMonster>2000L)
+     return confirm("map-monster",immediate,width,height,2)
+    noTargetSince=if(noTargetSince==0L)now else noTargetSince
+    stableKind="";stable=0
+    return null
    }
+   noTargetSince=0L
+   return confirm("map-nav",offscreen,width,height,2)
   }
-  // Wait for the new camera frame after transition; then patrol if needed.
+  if(immediate!=null && now-lastMonster>2200L){
+   noTargetSince=0L
+   return confirm("map-monster",immediate,width,height,2)
+  }
   if(noTargetSince==0L)noTargetSince=now
-  phase=Phase.SCANNING
   stableKind="";stable=0
   return null
  }
 
+ fun onTapAccepted(kind:String,x:Float,y:Float,now:Long=SystemClock.elapsedRealtime()){
+  stableKind="";stable=0
+  when(kind){
+   "close-minimap"->{lastClose=now;phase=Phase.CLOSING_MAP;until=now+1200L}
+   "map-monster"->{
+    lastMonster=now;phase=Phase.APPROACHING_MONSTER;until=now+2500L
+    retryCount=0;previousNavX=-1f;previousNavY=-1f
+    monsterSearchUntil=0L
+   }
+   "map-nav"->{
+    val same=lastNavX>=0f && abs(x-lastNavX)<60f && abs(y-lastNavY)<85f
+    if(same)retryCount++ else retryCount=1
+    previousNavX=lastNavX;previousNavY=lastNavY
+    lastNavX=x;lastNavY=y
+    lastNavigation=now;phase=Phase.CAMERA_MOVING
+    isCameraMoving=true;until=now+1300L
+    monsterSearchUntil=now+8000L
+   }
+  }
+ }
+
  fun canPatrol(now:Long=SystemClock.elapsedRealtime()):Boolean=
   !isCameraMoving && phase==Phase.SCANNING &&
-   noTargetSince>0L && now-noTargetSince>5500L
+   now>=monsterSearchUntil && noTargetSince>0L && now-noTargetSince>5500L
 
  private fun confirm(kind:String,target:MapDetector.Target,w:Int,h:Int,needed:Int):Choice?{
   val valid=stableKind==kind &&
