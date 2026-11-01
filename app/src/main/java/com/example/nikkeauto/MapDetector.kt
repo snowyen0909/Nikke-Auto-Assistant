@@ -115,89 +115,60 @@ object MapDetector {
  /** Cyan-bordered diamond exclamation; return center, not an arbitrary cyan pixel.
   * Shared for overhead enemy markers and offscreen camera-navigation markers.
   */
- // 21x21 color/shape template extracted from the user's 79x81 icon reference.
- // C=cyan outline, W=white interior, D=dark exclamation, .=ignore.
- private val diamondTemplate=arrayOf(
-  "WWWWWWWWWWWWWWWWWWWWWWWWW",
-  "WWWWWWWWWWWWWWWWWWWWWWWWW",
-  "WWWWWWWWWWCCCCWWWWWWWWWWW",
-  "WWWWWWWWWCCWWCCWWWWWWWWWW",
-  "WWWWWWWWCCW..WCCWWWWWWWWW",
-  "WWWWWWWCCW.WW.WCCWWWWWWWW",
-  "WWWWWWCCW.WWWW.WCCWWWWWWW",
-  "WWWWWCCW.WWDDWW.WCCWWWWWW",
-  "WWWWCCW.WWWDDWWW.WCCWWWWW",
-  "WWWCWW.WWWWDDWWWW.WCCWWWW",
-  "WWCWW.WWWWWDDWWWWW.WCCWWW",
-  "WCCW.WWWWWWDDWWWWWWDWCWWW",
-  "WWCW.WWWWWWD.WWWWW..WCWWW",
-  "WWCCW.WWWWWDDWWWW..WCCWWW",
-  "WWWCCW.WWWWDDWWW..WCCWWWW",
-  "WWWWCCW.WW....W..WCCWWWWW",
-  "WWWWWCCW.DDDDDD.WCCWWWWWW",
-  "WWWWWWCCW..DDD.WCCWWWWWWW",
-  "WWWWWWWCCW.DDWWCCWWWWWWWW",
-  "WWWWWWWWCCWWWWCCWWWWWWWWW",
-  "WWWWWWWWWCCWCCWWWWWWWWWWW",
-  "WWWWWWWWWWCCCWWWWWWWWWWWW",
-  "WWWWWWWWWWWWWWWWWWWWWWWWW",
-  "WWWWWWWWWWWWWWWWWWWWWWWWW",
-  "WWWWWWWWWWWWWWWWWWWWWWWWW"
- )
- private fun diamondColor(p:Int):Char {
-  val r=Color.red(p);val g=Color.green(p);val b=Color.blue(p)
-  if(b>123 && g>112 && b>r*1.19f && g>r*1.12f)return 'C'
-  if(r>176 && g>176 && b>176)return 'W'
-  if(r<140 && g<148 && b<156)return 'D'
-  return '.'
- }
- /** The 25x25 sampled color/shape pattern above is derived from the actual
-  * uploaded icon. Only colored rim and inner exclamation are compared;
-  * surrounding W pixels are ignored because in-game backgrounds vary.
-  */
  fun navigationDiamond(b:Bitmap,mapExpanded:Boolean=false):Target? {
   val w=b.width;val h=b.height
-  if(w<160 || h<200)return null
-  val widthSamples=diamondTemplate[0].length
-  val points=ArrayList<Triple<Int,Int,Char>>()
-  for(y in diamondTemplate.indices)for(x in 0 until widthSamples){
-   val ch=diamondTemplate[y][x]
-   // Ignore background white and ambiguous antialias pixels.
-   if(ch=='C' || ch=='D')points.add(Triple(x,y,ch))
-  }
-  val sizes=intArrayOf((w*.085f).toInt(),(w*.105f).toInt(),
-   (w*.125f).toInt(),(w*.15f).toInt())
-  val stride=max(3,w/140)
+  val step=max(2,min(w,h)/250)
+  val gw=(w+step-1)/step;val gh=(h+step-1)/step
+  val mask=BooleanArray(gw*gh)
+  for(gy in (h*.115f).toInt()/step until min(gh,(h*.935f).toInt()/step))
+   for(gx in (w*.035f).toInt()/step until min(gw,(w*.96f).toInt()/step)){
+    val x=min(w-1,gx*step);val y=min(h-1,gy*step)
+    if(mapExpanded && x<w*.44f && y<h*.28f)continue
+    if(y<h*.15f && x>w*.48f)continue // EVENT HUD
+    val p=b.getPixel(x,y)
+    val r=Color.red(p);val g=Color.green(p);val blue=Color.blue(p)
+    mask[gy*gw+gx]=blue>140 && g>95 && blue>r*1.22f && g>r*1.10f
+   }
+  val seen=BooleanArray(mask.size)
+  val queue=IntArray(mask.size)
   var best:Target?=null
-  for(size in sizes.distinct()){
-   val half=size/2
-   for(cy in (h*.125f).toInt()..(h*.92f).toInt() step stride)
-    for(cx in (w*.06f).toInt()..(w*.94f).toInt() step stride){
-     if(cx-half<0 || cx+half>=w || cy-half<0 || cy+half>=h)continue
-     if(mapExpanded && cx<w*.45f && cy<h*.29f)continue
-     if(cx>w*.49f && cy<h*.17f)continue
-     // Fast cyan rim anchors from the supplied image.
-     var rim=0
-     for((dx,dy) in arrayOf(0 to -9,-9 to 0,9 to 0,0 to 9)){
-      val x=cx+dx*size/25;val y=cy+dy*size/25
-      if(diamondColor(b.getPixel(x,y))=='C')rim++
+  for(i in mask.indices){
+   if(!mask[i] || seen[i])continue
+   var head=0;var tail=1;queue[0]=i;seen[i]=true
+   var minX=gw;var maxX=0;var minY=gh;var maxY=0
+   while(head<tail){
+    val index=queue[head++];val x=index%gw;val y=index/gw
+    minX=min(minX,x);maxX=max(maxX,x);minY=min(minY,y);maxY=max(maxY,y)
+    for(dy in -1..1)for(dx in -1..1){
+     val xx=x+dx;val yy=y+dy
+     if(xx in 0 until gw && yy in 0 until gh){
+      val j=yy*gw+xx
+      if(mask[j] && !seen[j]){seen[j]=true;queue[tail++]=j}
      }
-     if(rim<2)continue
-     var cyanOk=0;var cyanTotal=0;var darkOk=0;var darkTotal=0
-     for((x,y,ch) in points){
-      val xx=cx+(x-12)*size/25;val yy=cy+(y-12)*size/25
-      val got=diamondColor(b.getPixel(xx,yy))
-      if(ch=='C'){cyanTotal++;if(got=='C')cyanOk++}
-      else {darkTotal++;if(got=='D')darkOk++}
-     }
-     if(cyanTotal==0 || darkTotal==0)continue
-     val cScore=cyanOk.toFloat()/cyanTotal
-     val dScore=darkOk.toFloat()/darkTotal
-     // Only accept distinctive complete icon, not arbitrary blue scenery.
-     if(cScore<.61f || dScore<.54f)continue
-     val score=((cScore*.7f+dScore*.3f)*100).toInt()
-     if(best==null || score>best.score)best=Target(cx.toFloat(),cy.toFloat(),score)
     }
+   }
+   val bw=(maxX-minX+1)*step;val bh=(maxY-minY+1)*step
+   if(bw<w*.045f || bw>w*.23f || bh<w*.045f || bh>w*.23f)continue
+   val aspect=bw.toFloat()/bh
+   if(aspect !in .54f..1.90f || tail<10)continue
+   val cx=((minX+maxX)*step/2).coerceIn(0,w-1)
+   val cy=((minY+maxY)*step/2).coerceIn(0,h-1)
+   var white=0;var dark=0;var count=0
+   val radius=min(bw,bh)/4
+   for(y in cy-radius..cy+radius step max(2,step))
+    for(x in cx-radius..cx+radius step max(2,step)){
+     if(x !in 0 until w || y !in 0 until h)continue
+     val p=b.getPixel(x,y)
+     val r=Color.red(p);val g=Color.green(p);val blue=Color.blue(p)
+     if(r>185 && g>185 && blue>185)white++
+     if(r<110 && g<125 && blue<140)dark++
+     count++
+    }
+   if(count==0 || white<2 || dark<1)continue
+   // Skip the blue return/home HUD in the bottom navigation bar.
+   if(cy>h*.93f)continue
+   val score=tail+white*2
+   if(best==null || score>best.score)best=Target(cx.toFloat(),cy.toFloat(),score)
   }
   return best
  }
@@ -295,55 +266,6 @@ object MapDetector {
       (kotlin.math.abs(y-h*.079f)/3f).toInt()
     if(diagonal>=5 && (best==null || score>best.score))
      best=Target(x.toFloat(),y.toFloat(),score)
-   }
-  return best
- }
- /** Unactivated ground pad in reference image 2: dark octagonal center and
-  * concentric metallic rings. Activated image 1 is distinctly bright.
-  * This is intentionally conservative to avoid tapping scenery.
-  */
- fun inactiveGroundPad(b:Bitmap):Target? {
-  val w=b.width;val h=b.height
-  val scale=min(w,h)
-  var best:Target?=null
-  // Exclude navigation HUD and expanded minimap.
-  for(y in (h*.28f).toInt() until (h*.82f).toInt() step max(10,scale/32))
-   for(x in (w*.17f).toInt() until (w*.85f).toInt() step max(10,scale/32)){
-    for(radius in intArrayOf(scale/17,scale/13,scale/10)){
-     if(x-radius<0 || x+radius>=w || y-radius<0 || y+radius>=h)continue
-     var centerBrightness=0f;var outerBrightness=0f
-     var centerN=0;var outerN=0;var metallic=0
-     for(k in 0 until 24){
-      val theta=k*Math.PI/12.0
-      val ix=x+(radius*.35*cos(theta)).toInt()
-      val iy=y+(radius*.35*.72*sin(theta)).toInt()
-      val ox=x+(radius*.92*cos(theta)).toInt()
-      val oy=y+(radius*.92*.72*sin(theta)).toInt()
-      val pc=b.getPixel(ix,iy);val po=b.getPixel(ox,oy)
-      val cr=Color.red(pc);val cg=Color.green(pc);val cb=Color.blue(pc)
-      val or=Color.red(po);val og=Color.green(po);val ob=Color.blue(po)
-      centerBrightness+=(cr+cg+cb)/3f;centerN++
-      outerBrightness+=(or+og+ob)/3f;outerN++
-      if(kotlin.math.abs(or-og)<29 && kotlin.math.abs(og-ob)<29)metallic++
-     }
-     centerBrightness/=centerN;outerBrightness/=outerN
-     // Dark center of the unactivated pad; activated pad has pale center.
-     if(centerBrightness !in 28f..115f || outerBrightness !in 50f..165f)continue
-     if(metallic<16 || kotlin.math.abs(outerBrightness-centerBrightness)<13f)continue
-     // Require approximately symmetric outer ring, not a random dark patch.
-     var symmetry=0
-     for(k in 0 until 12){
-      val theta=k*Math.PI/6.0
-      val xx=x+(radius*.75*cos(theta)).toInt()
-      val yy=y+(radius*.75*.72*sin(theta)).toInt()
-      val px=b.getPixel(xx,yy)
-      val v=(Color.red(px)+Color.green(px)+Color.blue(px))/3f
-      if(kotlin.math.abs(v-outerBrightness)<50f)symmetry++
-     }
-     if(symmetry<9)continue
-     val score=metallic+symmetry
-     if(best==null || score>best.score)best=Target(x.toFloat(),y.toFloat(),score)
-    }
    }
   return best
  }
