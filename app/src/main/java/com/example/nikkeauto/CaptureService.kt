@@ -193,19 +193,24 @@ class CaptureService : Service() {
      val enterState=if(enter!=null)BattleDetector.stateNear(bitmap,enter.second,enter.third) else BattleDetector.ColorState.UNKNOWN
      val storyScreen=skip!=null || storyHud || skipIcon!=null
      val resultScreen=hasResult || popup
+     // OCR sometimes fails on the small 野外 text; combine scene context with
+     // minimap recognition, while still excluding battles, story and results.
+     val detectedMinimap=if(Settings.map && !battleScreen && !storyScreen && !resultScreen)
+      MapDetector.expandedMinimap(bitmap) else null
      val outdoorMap=!battleScreen && !storyScreen && !resultScreen &&
-      (all.contains("野外") || all.contains("CURRENTAREA") || all.contains("NORMAL"))
+      (all.contains("野外") || all.contains("CURRENTAREA") ||
+       all.contains("NORMAL") || detectedMinimap!=null)
      // Selected blue-core encounters are more reliable than raw red components.
      val blueCore=if(Settings.map && outdoorMap)MapDetector.blueCoreRedRing(bitmap) else null
      val monster=if(Settings.map && outdoorMap)
       blueCore ?: MapDetector.redRingMonster(bitmap) else null
-     val nav=if(Settings.map && outdoorMap && monster==null)MapDetector.navigationDiamond(bitmap) else null
+     val nav=if(Settings.map && outdoorMap && monster==null)MapDetector.navigationDiamond(bitmap,detectedMinimap!=null) else null
      val boss=if(Settings.map && outdoorMap && monster==null && nav==null)MapDetector.bossPortal(bitmap) else null
      val mini=if(Settings.map && outdoorMap)MapDetector.minimapEnemyDirection(bitmap) else 0
      val idleMap=Settings.map && outdoorMap && monster==null && nav==null && boss==null
      // The enlarged top-left minimap can hide a nearby diamond marker.
      // Detect its top-right white X; close it once and rescan before patrol.
-     val enlargedMap=if(Settings.map && outdoorMap)MapDetector.expandedMinimap(bitmap) else null
+     val enlargedMap=detectedMinimap
      // Ground pad only while navigating and only with unobstructed scene.
      val pad=if(Settings.map && outdoorMap && enlargedMap==null &&
        !battleScreen && !resultScreen)MapDetector.inactiveGroundPad(bitmap) else null
@@ -226,10 +231,10 @@ class CaptureService : Service() {
        Triple("enter",enter.second,enter.third)
       Settings.map && outdoorMap && monster!=null && monster.score>=9 ->
        Triple("map-monster",monster.x,monster.y)
-      Settings.map && outdoorMap && nav!=null ->
+      Settings.map && outdoorMap && nav!=null && enlargedMap==null ->
        Triple("map-nav",nav.x,nav.y)
       // When no enemy or visible navigation diamond, close enlarged map first.
-      Settings.map && outdoorMap && monster==null && nav==null &&
+      Settings.map && outdoorMap && monster==null &&
        enlargedMap!=null && SystemClock.elapsedRealtime()-lastMinimapClose>10000L ->
        Triple("close-minimap",enlargedMap.x,enlargedMap.y)
       // Interactive unactivated pads are low-priority exploration targets.
