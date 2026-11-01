@@ -115,77 +115,80 @@ object MapDetector {
  /** Cyan-bordered diamond exclamation; return center, not an arbitrary cyan pixel.
   * Shared for overhead enemy markers and offscreen camera-navigation markers.
   */
+ // 21x21 color/shape template extracted from the user's 79x81 icon reference.
+ // C=cyan outline, W=white interior, D=dark exclamation, .=ignore.
+ private val diamondTemplate=arrayOf(
+  ".....................",
+  ".....................",
+  "........CCCC.........",
+  ".......CCCCCC........",
+  "......CCCCCCCC.......",
+  ".....CCCCWW.CCC......",
+  "....CCCCWW.W.CCC.....",
+  "...CCCCWW.D.W.CCCC...",
+  "..CCCCWWW.DWWW.CCCC..",
+  "..CCCWWWW.DWWWW.CCC..",
+  ".CCCCWWWWWDWWWWWCCC.",
+  "..CCCWWWWWDWWWWCCCC.",
+  "..CCCCWWW.DWWWCCCCC.",
+  "...CCCC...D.WCCCCC...",
+  "....CCCCCDDDCCCC.....",
+  ".....CCCCCDCCCC......",
+  "......CCCCCCCC.......",
+  ".......CCCCCC........",
+  "........CCCC.........",
+  ".....................",
+  "....................."
+ )
+ private fun diamondColor(p:Int):Char {
+  val r=Color.red(p);val g=Color.green(p);val b=Color.blue(p)
+  if(b>117 && g>92 && b>r*1.16f && g>r*1.07f)return 'C'
+  if(r>176 && g>176 && b>176 && max(r,max(g,b))-min(r,min(g,b))<53)return 'W'
+  if(r<142 && g<151 && b<163)return 'D'
+  return '.'
+ }
+ /** Multi-scale anchored reference matching, avoiding arbitrary blue scenery. */
  fun navigationDiamond(b:Bitmap,mapExpanded:Boolean=false):Target? {
   val w=b.width;val h=b.height
-  val step=max(2,min(w,h)/260)
-  val gw=(w+step-1)/step;val gh=(h+step-1)/step
-  val mask=BooleanArray(gw*gh)
-  fun cyan(px:Int,py:Int):Boolean {
-   if(px !in 0 until w || py !in 0 until h)return false
-   val p=b.getPixel(px,py)
-   val r=Color.red(p);val g=Color.green(p);val bl=Color.blue(p)
-   return bl>148 && g>105 && bl>r*1.25f && g>r*1.12f
-  }
-  for(gy in (h*.13f).toInt()/step until min(gh,(h*.925f).toInt()/step))
-   for(gx in (w*.035f).toInt()/step until min(gw,(w*.965f).toInt()/step)){
-    val x=min(w-1,gx*step);val y=min(h-1,gy*step)
-    if(mapExpanded && x<w*.44f && y<h*.28f)continue
-    if(y<h*.17f && x>w*.48f)continue
-    mask[gy*gw+gx]=cyan(x,y)
-   }
-  val seen=BooleanArray(mask.size)
-  val queue=IntArray(mask.size)
+  if(w<100 || h<100)return null
   var best:Target?=null
-  for(i in mask.indices){
-   if(!mask[i] || seen[i])continue
-   var head=0;var tail=1;queue[0]=i;seen[i]=true
-   var minX=gw;var maxX=0;var minY=gh;var maxY=0
-   while(head<tail){
-    val idx=queue[head++];val x=idx%gw;val y=idx/gw
-    minX=min(minX,x);maxX=max(maxX,x);minY=min(minY,y);maxY=max(maxY,y)
-    for(dy in -1..1)for(dx in -1..1){
-     val xx=x+dx;val yy=y+dy
-     if(xx in 0 until gw && yy in 0 until gh){
-      val j=yy*gw+xx
-      if(mask[j] && !seen[j]){seen[j]=true;queue[tail++]=j}
+  val stride=max(4,w/75)
+  // Icon diameter in the supplied 565px-wide screenshots is around 60px.
+  val sizes=intArrayOf((w*.092f).toInt(),(w*.115f).toInt(),(w*.145f).toInt())
+  val points=ArrayList<Triple<Int,Int,Char>>()
+  for(yy in diamondTemplate.indices)for(xx in diamondTemplate[yy].indices step 2){
+   val expected=diamondTemplate[yy][xx]
+   if(expected!='.')points.add(Triple(xx,yy,expected))
+  }
+  for(size in sizes.distinct()){
+   val half=size/2
+   for(cy in (h*.14f).toInt()..(h*.92f).toInt() step stride)
+    for(cx in (w*.045f).toInt()..(w*.95f).toInt() step stride){
+     if(cx-half<0 || cx+half>=w || cy-half<0 || cy+half>=h)continue
+     if(mapExpanded && cx<w*.45f && cy<h*.29f)continue
+     if(cx>w*.49f && cy<h*.17f)continue // top-right EVENT HUD
+     // Quick rejection using 4 diagonal cyan rim points.
+     var cyanRim=0
+     for((dx,dy) in arrayOf(-6 to 0,6 to 0,0 to -6,0 to 6)){
+      val x=cx+dx*size/20;val y=cy+dy*size/20
+      if(diamondColor(b.getPixel(x,y))=='C')cyanRim++
      }
+     if(cyanRim<2)continue
+     var match=0;var total=0;var cyanCount=0;var whiteCount=0;var darkCount=0
+     for((xx,yy,expected) in points){
+      val sx=cx+(xx-10)*size/20;val sy=cy+(yy-10)*size/20
+      val got=diamondColor(b.getPixel(sx,sy))
+      if(got==expected)match++
+      if(expected=='C' && got=='C')cyanCount++
+      if(expected=='W' && got=='W')whiteCount++
+      if(expected=='D' && got=='D')darkCount++
+      total++
+     }
+     if(total==0 || match.toFloat()/total<.68f ||
+       cyanCount<15 || whiteCount<10 || darkCount<2)continue
+     val score=match*100/total
+     if(best==null || score>best.score)best=Target(cx.toFloat(),cy.toFloat(),score)
     }
-   }
-   val bw=(maxX-minX+1)*step;val bh=(maxY-minY+1)*step
-   // Refuse blue buildings/roads and thin arrow-only strokes.
-   if(bw !in (w*.055f).toInt()..(w*.16f).toInt())continue
-   if(bh !in (w*.055f).toInt()..(w*.19f).toInt())continue
-   if(bw.toFloat()/bh !in .66f..1.35f || tail<12)continue
-   val x0=minX*step;val x1=min(w-1,(maxX+1)*step)
-   val y0=minY*step;val y1=min(h-1,(maxY+1)*step)
-   // Locate the WHITE inner diamond, not the cyan cluster centroid:
-   // a downward pointer attached to the frame otherwise shifts tap downward.
-   var whiteX=0L;var whiteY=0L;var white=0
-   var dark=0
-   val mx=(x0+x1)/2;val my=(y0+y1)/2
-   for(y in (my-bh/4).coerceAtLeast(0)..(my+bh/5).coerceAtMost(h-1) step max(1,step))
-    for(x in (mx-bw/4).coerceAtLeast(0)..(mx+bw/4).coerceAtMost(w-1) step max(1,step)){
-     val p=b.getPixel(x,y)
-     val r=Color.red(p);val g=Color.green(p);val bl=Color.blue(p)
-     if(r>192 && g>192 && bl>192){whiteX+=x;whiteY+=y;white++}
-     if(r<110 && g<120 && bl<135)dark++
-    }
-   if(white<4 || dark<2)continue
-   val cx=(whiteX/white).toInt();val cy=(whiteY/white).toInt()
-   if(cy<h*.14f || cy>h*.91f)continue
-   // Require cyan surrounding white on both axes at a comparable distance.
-   val reach=(min(bw,bh)*.42f).toInt()
-   var directions=0
-   for((dx,dy) in arrayOf(0 to -1,0 to 1,-1 to 0,1 to 0)){
-    var hit=false
-    for(rad in (reach/2).coerceAtLeast(3)..reach step max(1,step)){
-     if(cyan(cx+dx*rad,cy+dy*rad)){hit=true;break}
-    }
-    if(hit)directions++
-   }
-   if(directions<3)continue
-   val score=white*2+tail+directions*10
-   if(best==null || score>best.score)best=Target(cx.toFloat(),cy.toFloat(),score)
   }
   return best
  }
