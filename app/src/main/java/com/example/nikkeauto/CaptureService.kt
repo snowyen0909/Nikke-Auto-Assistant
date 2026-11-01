@@ -220,7 +220,8 @@ class CaptureService : Service() {
       mapState.next(w,h,enlargedMap,monster,overhead,offscreen,nowMap) else null
      val mapBusy=Settings.map && outdoorMap && (enlargedMap!=null ||
       mapState.isCameraMoving || mapState.phase==MapNavigationState.Phase.CLOSING_MAP ||
-      mapState.phase==MapNavigationState.Phase.APPROACHING_MONSTER)
+      mapState.phase==MapNavigationState.Phase.APPROACHING_MONSTER ||
+      mapState.phase==MapNavigationState.Phase.AWAITING_MONSTER)
      val idleMap=Settings.map && outdoorMap && monster==null && marker==null && boss==null
      val target:Triple<String,Float,Float>?=when {
       failed && !failureHandled -> Triple("failed-return",w*.16f,h*.943f)
@@ -260,6 +261,9 @@ class CaptureService : Service() {
         val tap=Settings.tap
         if(tap!=null && tap.click(target.second,target.third)) {
          Settings.taps++
+         if(target.first=="map-nav" || target.first=="map-monster" ||
+          target.first=="close-minimap")
+          mapState.onTapAccepted(target.first,target.second,target.third,now)
          if(target.first=="close-minimap")lastMinimapClose=now
          status("已送出 ${target.first} 點擊，共 ${Settings.taps} 次")
          if(target.first=="failed-return") {
