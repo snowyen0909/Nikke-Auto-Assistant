@@ -112,29 +112,35 @@ object MapDetector {
  /** Candidate blue/cyan exclamation markers inside the map, excluding HUD/minimap.
   * Verify a bright white center surrounded by cyan-blue pixels.
   */
- fun navigationDiamond(b:Bitmap):Target? {
-  val w=b.width;val h=b.height;val s=max(3,min(w,h)/190)
+ fun navigationDiamond(b:Bitmap, mapExpanded:Boolean=false):Target? {
+  val w=b.width;val h=b.height
+  // Navigation icons can appear in the upper LEFT after the minimap closes.
+  // The former x<24%, y<32% exclusion blocked these real destinations.
+  val s=max(3,min(w,h)/190)
   var best:Target?=null
-  for(y in (h*.15f).toInt() until (h*.87f).toInt() step s)
-   for(x in (w*.14f).toInt() until (w*.92f).toInt() step s){
-    if(x<w*.24f && y<h*.32f)continue
-    var cyan=0;var white=0;var samples=0
-    val r=max(10,min(w,h)/55)
-    for(dy in -r..r step max(3,r/4))for(dx in -r..r step max(3,r/4)){
+  for(y in (h*.115f).toInt() until (h*.84f).toInt() step s)
+   for(x in (w*.045f).toInt() until (w*.94f).toInt() step s){
+    if(mapExpanded && x<w*.45f && y<h*.30f)continue
+    // Avoid permanent currency/HUD strip and top-right EVENT button.
+    if(y<h*.12f || (x>w*.51f && y<h*.18f))continue
+    val center=b.getPixel(x,y)
+    val cr=Color.red(center);val cg=Color.green(center);val cb=Color.blue(center)
+    if(!(cb>145 && cg>110 && cb>cr*1.30f && cg>cr*1.10f))continue
+    val r=max(7,min(w,h)/70)
+    var cyan=0;var white=0
+    for(dy in -r..r step max(2,r/3))for(dx in -r..r step max(2,r/3)){
      val xx=x+dx;val yy=y+dy
      if(xx !in 0 until w || yy !in 0 until h)continue
-     val color=b.getPixel(xx,yy)
-     val red=Color.red(color);val green=Color.green(color);val blue=Color.blue(color)
-     if(blue>155 && green>120 && blue>red*1.30f && green>red*1.20f)cyan++
-     if(red>205 && green>205 && blue>205)white++
-     samples++
+     val p=b.getPixel(xx,yy)
+     val red=Color.red(p);val green=Color.green(p);val blue=Color.blue(p)
+     if(blue>145 && green>110 && blue>red*1.25f && green>red*1.12f)cyan++
+     if(red>195 && green>195 && blue>195)white++
     }
-    if(samples==0 || cyan<6 || white<3)continue
-    // Prefer a sufficiently strong local cyan ring with a white interior.
+    if(cyan<5 || white<1)continue
     val score=cyan*2+white
     if(best==null || score>best.score)best=Target(x.toFloat(),y.toFloat(),score)
    }
-  return best?.takeIf{it.score>=18}
+  return best?.takeIf{it.score>=12}
  }
  /** Boss portal: broad saturated red/orange glowing ground zone, not a tiny enemy ring. */
  fun bossPortal(b:Bitmap):Target? {
@@ -182,29 +188,40 @@ object MapDetector {
   */
  fun expandedMinimap(b:Bitmap):Target? {
   val w=b.width;val h=b.height
-  // User reference: X at roughly (0.36 w, 0.08 h), in the upper-right
-  // corner of the large blue minimap. Verify the map panel, never tap blind.
-  val x=(w*.363f).toInt();val y=(h*.079f).toInt()
-  val r=max(4,(min(w,h)*.013f).toInt())
-  if(x-r<0 || x+r>=w || y-r<0 || y+r>=h)return null
-  var cross=0
-  for(d in -r..r step max(1,r/4)){
-   val p=b.getPixel(x+d,y+d);val q=b.getPixel(x+d,y-d)
-   if(Color.red(p)>185 && Color.green(p)>185 && Color.blue(p)>185)cross++
-   if(Color.red(q)>185 && Color.green(q)>185 && Color.blue(q)>185)cross++
-  }
-  if(cross<7)return null
-  // The blue filled geographic map occupies x=.04-.40 and y=.07-.23.
-  var blue=0;var sampled=0
-  for(yy in (h*.115f).toInt()..(h*.215f).toInt() step max(3,h/90))
-   for(xx in (w*.07f).toInt()..(w*.32f).toInt() step max(3,w/80)){
-    val p=b.getPixel(xx,yy)
-    if(Color.blue(p)>Color.red(p)*1.18f &&
-       Color.blue(p)>Color.green(p)*1.06f && Color.blue(p)>80)blue++
-    sampled++
+  // In the user's Redmi reference the expanded minimap is a large, blue
+  // rectangular overlay covering x=.03-.42, y=.06-.24, with X near (.365,.079).
+  // Detect the actual blue minimap panel before attempting the close control.
+  var blue=0;var total=0
+  for(y in (h*.10f).toInt() until (h*.225f).toInt() step max(2,h/125))
+   for(x in (w*.06f).toInt() until (w*.37f).toInt() step max(2,w/95)){
+    val p=b.getPixel(x,y)
+    val r=Color.red(p);val g=Color.green(p);val bl=Color.blue(p)
+    if(bl>70 && bl>r*1.22f && bl>g*1.08f)blue++
+    total++
    }
-  return if(sampled>0 && blue>=12 && blue.toFloat()/sampled>.08f)
-   Target(x.toFloat(),y.toFloat(),cross+blue) else null
+  if(total==0 || blue<30 || blue.toFloat()/total<.13f)return null
+  // The X is in a narrow top-right region of the detected minimap.
+  // Search a small region rather than testing a single exact pixel.
+  var best:Target?=null
+  val rad=max(3,min(w,h)/110)
+  for(y in (h*.059f).toInt() until (h*.109f).toInt() step max(2,rad))
+   for(x in (w*.325f).toInt() until (w*.41f).toInt() step max(2,rad)){
+    var diagonal=0
+    for(d in -rad..rad step max(1,rad/2)){
+     for(sign in intArrayOf(-1,1)){
+      val xx=x+d;val yy=y+sign*d
+      if(xx !in 0 until w || yy !in 0 until h)continue
+      val p=b.getPixel(xx,yy)
+      if(Color.red(p)>170 && Color.green(p)>170 && Color.blue(p)>170)diagonal++
+     }
+    }
+    // Bias toward the right/top corner of the panel where the X appears.
+    val score=diagonal*10-(kotlin.math.abs(x-w*.365f)/2f).toInt()-
+      (kotlin.math.abs(y-h*.079f)/3f).toInt()
+    if(diagonal>=5 && (best==null || score>best.score))
+     best=Target(x.toFloat(),y.toFloat(),score)
+   }
+  return best
  }
  /** Unactivated ground pad in reference image 2: dark octagonal center and
   * concentric metallic rings. Activated image 1 is distinctly bright.
