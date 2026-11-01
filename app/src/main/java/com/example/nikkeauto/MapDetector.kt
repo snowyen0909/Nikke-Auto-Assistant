@@ -251,39 +251,57 @@ object MapDetector {
   */
  fun expandedMinimap(b:Bitmap):Target? {
   val w=b.width;val h=b.height
-  // In the user's Redmi reference the expanded minimap is a large, blue
-  // rectangular overlay covering x=.03-.42, y=.06-.24, with X near (.365,.079).
-  // Detect the actual blue minimap panel before attempting the close control.
-  var blue=0;var total=0
-  for(y in (h*.10f).toInt() until (h*.225f).toInt() step max(2,h/125))
-   for(x in (w*.06f).toInt() until (w*.37f).toInt() step max(2,w/95)){
-    val p=b.getPixel(x,y)
-    val r=Color.red(p);val g=Color.green(p);val bl=Color.blue(p)
-    if(bl>70 && bl>r*1.22f && bl>g*1.08f)blue++
-    total++
-   }
-  if(total==0 || blue<30 || blue.toFloat()/total<.13f)return null
-  // The X is in a narrow top-right region of the detected minimap.
-  // Search a small region rather than testing a single exact pixel.
+  if(w<240 || h<400)return null
+  // UI can start at y=.06 on one phone but y=.11 on another.
+  // In both supplied screenshots the X is close to x=.365 of the display.
+  val xFrom=(w*.326f).toInt()
+  val xTo=(w*.402f).toInt()
+  val yFrom=(h*.053f).toInt()
+  val yTo=(h*.176f).toInt()
+  val r=max(4,(w*.014f).toInt())
+  val step=max(2,r/3)
   var best:Target?=null
-  val rad=max(3,min(w,h)/110)
-  for(y in (h*.059f).toInt() until (h*.109f).toInt() step max(2,rad))
-   for(x in (w*.325f).toInt() until (w*.41f).toInt() step max(2,rad)){
-    var diagonal=0
-    for(d in -rad..rad step max(1,rad/2)){
-     for(sign in intArrayOf(-1,1)){
-      val xx=x+d;val yy=y+sign*d
-      if(xx !in 0 until w || yy !in 0 until h)continue
-      val p=b.getPixel(xx,yy)
-      if(Color.red(p)>170 && Color.green(p)>170 && Color.blue(p)>170)diagonal++
-     }
+  for(y in yFrom..yTo step step)for(x in xFrom..xTo step step){
+   if(x-2*r<0 || x+2*r>=w || y-r<0 || y+2*r>=h)continue
+   // The X has two bright diagonals, not a single blue patch.
+   var diagonalA=0;var diagonalB=0
+   var axisBright=0
+   for(d in -r..r step max(1,r/4)){
+    fun bright(xx:Int,yy:Int):Boolean {
+     val p=b.getPixel(xx,yy)
+     return Color.red(p)>167 && Color.green(p)>167 &&
+      Color.blue(p)>167 &&
+      max(Color.red(p),max(Color.green(p),Color.blue(p)))-
+       min(Color.red(p),min(Color.green(p),Color.blue(p)))<75
     }
-    // Bias toward the right/top corner of the panel where the X appears.
-    val score=diagonal*10-(kotlin.math.abs(x-w*.365f)/2f).toInt()-
-      (kotlin.math.abs(y-h*.079f)/3f).toInt()
-    if(diagonal>=5 && (best==null || score>best.score))
-     best=Target(x.toFloat(),y.toFloat(),score)
+    if(bright(x+d,y+d))diagonalA++
+    if(bright(x+d,y-d))diagonalB++
+    if(bright(x+d,y))axisBright++
    }
+   if(diagonalA<5 || diagonalB<5)continue
+   // Avoid bright horizontal labels or the minimap blue diamond.
+   if(axisBright>=diagonalA+diagonalB-3)continue
+
+   // Expanded panel has a dark blue/gray interior directly below and left
+   // of its X. Validate a substantial patch, not its blue-map fill amount.
+   var panel=0;var samples=0;var blue=0
+   val py0=y+(h*.026f).toInt()
+   val py1=min(h-1,y+(h*.105f).toInt())
+   val px0=max(1,x-(w*.27f).toInt())
+   val px1=x-(w*.045f).toInt()
+   for(yy in py0..py1 step max(3,h/185))
+    for(xx in px0..px1 step max(3,w/105)){
+     val p=b.getPixel(xx,yy)
+     val red=Color.red(p);val green=Color.green(p);val bl=Color.blue(p)
+     if(red<115 && green<157 && bl<190)panel++
+     if(bl>94 && bl>red*1.20f && bl>green*1.06f)blue++
+     samples++
+    }
+   if(samples==0 || panel.toFloat()/samples<.48f || blue<6)continue
+   val score=(diagonalA+diagonalB)*12+blue/2-
+    (kotlin.math.abs(x-w*.365f)/3f).toInt()
+   if(best==null || score>best.score)best=Target(x.toFloat(),y.toFloat(),score)
+  }
   return best
  }
 
