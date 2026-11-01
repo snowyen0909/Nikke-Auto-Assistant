@@ -1,5 +1,7 @@
 # NIKKE Auto Assistant
 
+<p align="center"><img src="docs/nikke-cover.jpg" width="180" alt="NIKKE Automation 專案封面與 App 圖示" /></p>
+
 《勝利女神：妮姬》（GODDESS OF VICTORY: NIKKE）Android 畫面辨識與點擊輔助工具。
 
 > **非官方、實驗性專案。** 本工具不隸屬於遊戲開發或發行公司。自動化操作可能受到遊戲服務條款限制，使用者須自行評估風險。目前辨識演算法仍可能漏判或誤點，請勿在無人監看時依賴本工具。
