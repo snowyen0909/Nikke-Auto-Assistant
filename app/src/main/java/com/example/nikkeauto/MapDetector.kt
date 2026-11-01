@@ -120,14 +120,14 @@ object MapDetector {
   val step=max(2,min(w,h)/250)
   val gw=(w+step-1)/step;val gh=(h+step-1)/step
   val mask=BooleanArray(gw*gh)
-  for(gy in (h*.115f).toInt()/step until min(gh,(h*.83f).toInt()/step))
+  for(gy in (h*.115f).toInt()/step until min(gh,(h*.935f).toInt()/step))
    for(gx in (w*.035f).toInt()/step until min(gw,(w*.96f).toInt()/step)){
     val x=min(w-1,gx*step);val y=min(h-1,gy*step)
     if(mapExpanded && x<w*.44f && y<h*.28f)continue
     if(y<h*.15f && x>w*.48f)continue // EVENT HUD
     val p=b.getPixel(x,y)
     val r=Color.red(p);val g=Color.green(p);val blue=Color.blue(p)
-    mask[gy*gw+gx]=blue>150 && g>105 && blue>r*1.30f && g>r*1.18f
+    mask[gy*gw+gx]=blue>140 && g>95 && blue>r*1.22f && g>r*1.10f
    }
   val seen=BooleanArray(mask.size)
   val queue=IntArray(mask.size)
@@ -150,7 +150,7 @@ object MapDetector {
    val bw=(maxX-minX+1)*step;val bh=(maxY-minY+1)*step
    if(bw<w*.045f || bw>w*.23f || bh<w*.045f || bh>w*.23f)continue
    val aspect=bw.toFloat()/bh
-   if(aspect !in .68f..1.48f || tail<12)continue
+   if(aspect !in .54f..1.90f || tail<10)continue
    val cx=((minX+maxX)*step/2).coerceIn(0,w-1)
    val cy=((minY+maxY)*step/2).coerceIn(0,h-1)
    var white=0;var dark=0;var count=0
@@ -165,6 +165,8 @@ object MapDetector {
      count++
     }
    if(count==0 || white<2 || dark<1)continue
+   // Skip the blue return/home HUD in the bottom navigation bar.
+   if(cy>h*.93f)continue
    val score=tail+white*2
    if(best==null || score>best.score)best=Target(cx.toFloat(),cy.toFloat(),score)
   }
