@@ -49,7 +49,7 @@ object ModernUi {
  data class ViewRefs(val status:TextView,val details:TextView)
  fun create(a:Activity,
   permissions:()->Unit,capture:()->Unit,test:()->Unit,
-  pause:()->Unit,resume:()->Unit,stop:()->Unit,daily:()->Unit):ViewRefs{
+  pause:()->Unit,resume:()->Unit,stop:()->Unit):ViewRefs{
   a.window.statusBarColor=BG
   a.window.navigationBarColor=BG
   val root=col(a).apply{setBackgroundColor(BG)}
@@ -76,18 +76,13 @@ object ModernUi {
   add(permission,action(a,"02 · 授權整個螢幕",TILE,capture),8)
   add(permission,action(a,"測試點擊",TILE,test),8)
   add(body,permission,20)
-  val dailyBlock=block(a,"每日任務")
-  add(dailyBlock,txt(a,"日常一條龍",21f,true),10)
-  add(dailyBlock,txt(a,"前哨基地 · 派遣 · 免費禮包 · 好友愛心 · 每日獎勵",12f,false,MUTED),6)
-  add(dailyBlock,action(a,"開啟日常專屬頁面",MINT,daily),12)
-  add(body,dailyBlock,16)
   val modules=block(a,"推圖自動化")
   add(modules,switchItem(a,"劇情與結算","SKIP / 結算推進",Settings.skip){Settings.skip=it},7)
   add(modules,switchItem(a,"戰鬥準備","橘色快速戰鬥優先",Settings.battle){Settings.battle=it})
   add(modules,switchItem(a,"地圖自動尋敵","紅圈、驚嘆號與 Boss",Settings.map){Settings.map=it})
   add(modules,switchItem(a,"地圖巡弋","實驗性功能",Settings.patrol){Settings.patrol=it})
   add(body,modules,16)
-  add(body,txt(a,"安全提示：進入遊戲前請確認無障礙和螢幕擷取已啟用。日常模式與一般推圖模式不會同時點擊。",11f,false,MUTED),16)
+  add(body,txt(a,"安全提示：進入遊戲前請確認無障礙和螢幕擷取已啟用。",11f,false,MUTED),16)
   a.setContentView(root)
   return ViewRefs(status,details)
  }
