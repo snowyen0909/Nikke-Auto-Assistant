@@ -253,7 +253,12 @@ class CaptureService : Service() {
        if(lastTarget==target.first) stable++ else {lastTarget=target.first;stable=1}
        val now=SystemClock.elapsedRealtime()
        status("目標 ${target.first} @(${target.second.toInt()},${target.third.toInt()}) 確認 ${stable}/2")
-       val cooldown=when(target.first) {"map-monster","map-nav","map-boss","map-pad"->6500L;"skip-visible"->1200L;else->1500L}
+       val cooldown=when(target.first){
+        "map-nav","map-monster","close-minimap"->1000L
+        "map-boss","map-pad"->6500L
+        "skip-visible"->1200L
+        else->1500L
+       }
        val requiredFrames=if(target.first=="skip-visible" ||
         target.first=="close-minimap" || target.first=="map-nav" ||
         target.first=="map-monster")1 else 2
