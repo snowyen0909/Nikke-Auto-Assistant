@@ -209,7 +209,7 @@ class CaptureService : Service() {
       MapDetector.navigationDiamond(bitmap) else null
      val overhead=if(Settings.map && outdoorMap && monster==null)
       MapDetector.overheadEnemyMarker(bitmap,marker) else null
-     val offscreen=if(overhead==null)marker else null
+     // Always prioritize a detected blue diamond; after camera travel the\n     // state machine gives the newly revealed monster one immediate turn.\n     val offscreen=marker
      val boss=if(Settings.map && outdoorMap && monster==null && marker==null && enlargedMap==null)
       MapDetector.bossPortal(bitmap) else null
      val mini=if(Settings.map && outdoorMap)MapDetector.minimapEnemyDirection(bitmap) else 0
