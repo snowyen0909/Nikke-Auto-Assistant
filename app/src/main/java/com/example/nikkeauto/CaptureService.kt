@@ -281,7 +281,7 @@ class CaptureService : Service() {
        }
       } else {
        stable=0;lastTarget=""
-       status("分析中：${Settings.frames} 張；劇情=${storyHud} SKIP文字=${visibleSkip!=null} SKIP圖=${skipIcon?.score ?: 0f} 地圖=${outdoorMap} 紅圈=${monster?.score ?: 0} 導航=${nav!=null} Boss=${boss!=null} 戰鬥=${battleScreen} 橘鍵=${orangeQuick!=null} 藍鍵=${blueEnter!=null} OCR: ${all.take(25)}")
+       status("分析中：${Settings.frames} 張；劇情=${storyHud} SKIP文字=${visibleSkip!=null} SKIP圖=${skipIcon?.score ?: 0f} 地圖=${outdoorMap} 紅圈=${monster?.score ?: 0} 導航=${offscreen!=null} 頭頂標記=${overhead!=null} 鏡頭移動=${mapState.isCameraMoving} Boss=${boss!=null} 戰鬥=${battleScreen} 橘鍵=${orangeQuick!=null} 藍鍵=${blueEnter!=null} OCR: ${all.take(25)}")
        if(idleMap && pad==null && enlargedMap==null && mapState.canPatrol(nowMap) && Settings.patrol && !Settings.paused && Settings.running){
         if(noTargetSince==0L)noTargetSince=nowMap
         if(nowMap-noTargetSince>9000L && nowMap-lastTap>6500L){
