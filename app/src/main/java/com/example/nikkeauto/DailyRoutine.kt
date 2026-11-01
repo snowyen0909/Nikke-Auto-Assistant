@@ -124,7 +124,7 @@ object DailyRoutine {
     if(has("TOUCHTOCONTINUE"))return tap("進入遊戲",.48f,.81f)
     if(has("公告") && has("活動公告","系統公告"))return tap("關閉公告",.88f,.105f)
     if(has("第三次地面收復戰","TRAILMARKER","NEWCHAPTER"))return tap("關閉活動彈窗",.85f,.19f)
-    if(reward()!=null)return reward()
+    reward()?.let{return it}
     if(home()){states[s.id]="已完成";advance()}
     else status="登入：等待遊戲首頁或已知彈窗"
    }
