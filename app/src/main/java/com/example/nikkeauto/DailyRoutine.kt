@@ -157,7 +157,13 @@ object DailyRoutine {
     if(has("REWARD"))return reward()
     if(has("購買道具","购买道具") && has("信用點","信用点")){
      // PDFs show FREE/0 gems. Never accept 0 if other payment may be charged.
-     if(!has("消耗資金","消耗资金") || !has("0") || has("NT$","$33","$170","$490")){
+     val explicitZero=lines.any{line->
+      val t=line.first.replace(" ","").trim()
+      (t=="0" || t=="鑽石0" || t=="消耗資金0" || t=="消耗资金0") &&
+       line.second in (width*.48f)..(width*.78f) &&
+       line.third in (height*.67f)..(height*.79f)
+     }
+     if(!has("消耗資金","消耗资金") || !explicitZero || has("NT$","$33","$170","$490")){
       paused=true;status="商店：無法確定消耗為 0，已暫停";return null
      }
      return label("確認 0 鑽石信用點購買","購買","购买")
