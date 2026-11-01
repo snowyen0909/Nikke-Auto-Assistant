@@ -33,6 +33,9 @@ class CaptureService : Service() {
  private var lastLoggedAt = 0L
  private var failureHandled = false
  private var lastMinimapClose = 0L
+ private var lastPadTap = 0L
+ private var lastTargetX = -1f
+ private var lastTargetY = -1f
  private val notificationChannel = "capture"
  private val ACTION_PAUSE="com.example.nikkeauto.PAUSE"
  private val ACTION_RESUME="com.example.nikkeauto.RESUME"
@@ -230,7 +233,8 @@ class CaptureService : Service() {
        enlargedMap!=null && SystemClock.elapsedRealtime()-lastMinimapClose>10000L ->
        Triple("close-minimap",enlargedMap.x,enlargedMap.y)
       // Interactive unactivated pads are low-priority exploration targets.
-      Settings.map && outdoorMap && pad!=null && enlargedMap==null ->
+      Settings.map && outdoorMap && pad!=null && enlargedMap==null &&
+       SystemClock.elapsedRealtime()-lastPadTap>20000L ->
        Triple("map-pad",pad.x,pad.y)
       Settings.map && outdoorMap && boss!=null ->
        Triple("map-boss",boss.x,boss.y)
@@ -248,6 +252,7 @@ class CaptureService : Service() {
         if(tap!=null && tap.click(target.second,target.third)) {
          Settings.taps++
          if(target.first=="close-minimap")lastMinimapClose=now
+         if(target.first=="map-pad")lastPadTap=now
          status("已送出 ${target.first} 點擊，共 ${Settings.taps} 次")
          if(target.first=="failed-return") {
           failureHandled=true
