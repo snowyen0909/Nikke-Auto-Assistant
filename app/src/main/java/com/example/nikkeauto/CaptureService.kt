@@ -32,6 +32,7 @@ class CaptureService : Service() {
  private var lastLoggedTarget = ""
  private var lastLoggedAt = 0L
  private var failureHandled = false
+ private var lastMinimapClose = 0L
  private val notificationChannel = "capture"
  private val ACTION_PAUSE="com.example.nikkeauto.PAUSE"
  private val ACTION_RESUME="com.example.nikkeauto.RESUME"
@@ -199,6 +200,10 @@ class CaptureService : Service() {
      val boss=if(Settings.map && outdoorMap && monster==null && nav==null)MapDetector.bossPortal(bitmap) else null
      val mini=if(Settings.map && outdoorMap)MapDetector.minimapEnemyDirection(bitmap) else 0
      val idleMap=Settings.map && outdoorMap && monster==null && nav==null && boss==null
+     // The enlarged top-left minimap can hide a nearby diamond marker.
+     // Detect its top-right white X; close it once and rescan before patrol.
+     val enlargedMap=Settings.map && outdoorMap &&
+      MapDetector.expandedMinimap(bitmap)
      val nowMap=SystemClock.elapsedRealtime()
      val target:Triple<String,Float,Float>?=when {
       failed && !failureHandled -> Triple("failed-return",w*.16f,h*.943f)
@@ -220,6 +225,9 @@ class CaptureService : Service() {
        Triple("map-nav",nav.x,nav.y)
       Settings.map && outdoorMap && boss!=null ->
        Triple("map-boss",boss.x,boss.y)
+      Settings.map && outdoorMap && idleMap && enlargedMap &&
+       SystemClock.elapsedRealtime()-lastMinimapClose>10000L ->
+       Triple("close-minimap",w*.365f,h*.047f)
       else -> null
      }
       if(target!=null) {
@@ -233,6 +241,7 @@ class CaptureService : Service() {
         val tap=Settings.tap
         if(tap!=null && tap.click(target.second,target.third)) {
          Settings.taps++
+         if(target.first=="close-minimap")lastMinimapClose=now
          status("已送出 ${target.first} 點擊，共 ${Settings.taps} 次")
          if(target.first=="failed-return") {
           failureHandled=true
@@ -247,7 +256,7 @@ class CaptureService : Service() {
       } else {
        stable=0;lastTarget=""
        status("分析中：${Settings.frames} 張；劇情=${storyHud} SKIP文字=${visibleSkip!=null} SKIP圖=${skipIcon?.score ?: 0f} 地圖=${outdoorMap} 紅圈=${monster?.score ?: 0} 導航=${nav!=null} Boss=${boss!=null} 戰鬥=${battleScreen} 橘鍵=${orangeQuick!=null} 藍鍵=${blueEnter!=null} OCR: ${all.take(25)}")
-       if(idleMap && Settings.patrol && !Settings.paused && Settings.running){
+       if(idleMap && !enlargedMap && Settings.patrol && !Settings.paused && Settings.running){
         if(noTargetSince==0L)noTargetSince=nowMap
         if(nowMap-noTargetSince>9000L && nowMap-lastTap>6500L){
          val tap=Settings.tap
