@@ -56,35 +56,39 @@ class MapNavigationState {
   if(minimap!=null){
    noTargetSince=0L
    if(now-lastClose<2300L)return null
-   return confirm("close-minimap",minimap,width,height,1)?.also {
-    lastClose=now;phase=Phase.CLOSING_MAP;until=now+1100L
-   }
+   return confirm("close-minimap",minimap,width,height,1)
   }
   // Priority 1: visible monster red ring or an exclamation above its body.
   val immediate=monster ?: marker
   if(immediate!=null){
    noTargetSince=0L
    if(now-lastMonster<2200L)return null
-   return confirm("map-monster",immediate,width,height,2)?.also {
-    lastMonster=now;phase=Phase.APPROACHING_MONSTER;until=now+1800L
-   }
+   return confirm("map-monster",immediate,width,height,2)
   }
   // Priority 2: offscreen arrow / blue diamond leads to a camera jump.
   if(offscreen!=null){
    noTargetSince=0L
    if(now-lastNavigation<2300L)return null
-   return confirm("map-nav",offscreen,width,height,2)?.also {
-    lastNavigation=now
-    phase=Phase.CAMERA_MOVING
-    isCameraMoving=true
-    until=now+1050L
-   }
+   return confirm("map-nav",offscreen,width,height,2)
   }
   // Wait for the new camera frame after transition; then patrol if needed.
   if(noTargetSince==0L)noTargetSince=now
   phase=Phase.SCANNING
   stableKind="";stable=0
   return null
+ }
+
+ /** State transitions only after the accessibility service accepts a tap. */
+ fun onTapAccepted(kind:String,now:Long=SystemClock.elapsedRealtime()){
+  stableKind="";stable=0
+  when(kind){
+   "close-minimap"->{lastClose=now;phase=Phase.CLOSING_MAP;until=now+1100L}
+   "map-monster"->{lastMonster=now;phase=Phase.APPROACHING_MONSTER;until=now+1800L}
+   "map-nav"->{
+    lastNavigation=now;phase=Phase.CAMERA_MOVING
+    isCameraMoving=true;until=now+1050L
+   }
+  }
  }
 
  fun canPatrol(now:Long=SystemClock.elapsedRealtime()):Boolean=
