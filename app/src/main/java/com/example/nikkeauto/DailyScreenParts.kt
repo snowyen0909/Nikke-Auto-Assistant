@@ -29,7 +29,7 @@ object DailyScreenParts {
     ?:tap("確認 REWARD",.50f,.68f)
   }
   fun topRightClose():Tap?=if(has("郵箱","邮箱","防禦前哨基地","防御前哨基地"))
-    tap("關閉彈窗",.89f,.075f) else null
+    tap("關閉彈窗",.89f,.132f) else null
  }
 
  /**
@@ -41,7 +41,8 @@ object DailyScreenParts {
  private var arenaBattles=0
  private var freeWipeAttempted=false
  private var rewardSeen=false
- fun reset(){current="";phase=0;arenaBattles=0;freeWipeAttempted=false;rewardSeen=false}
+ private var arenaResultHandled=false
+ fun reset(){current="";phase=0;arenaBattles=0;freeWipeAttempted=false;rewardSeen=false;arenaResultHandled=false}
  private fun enter(id:String){if(current!=id){current=id;phase=0;rewardSeen=false}}
  fun decide(id:String,frame:Frame):Tap? {
   enter(id)
@@ -71,12 +72,13 @@ object DailyScreenParts {
   }
   if(f.home()){
    if(phase>=2){phase=3;return null}
-   return f.tap("開啟信箱",.79f,.034f)
+   return f.tap("開啟信箱",.87f,.035f)
   }
   return null
  }
  private fun arena(f:Frame):Tap? {
   if(f.has("DEFEAT","VICTORY") && f.has("ROOKIEARENA","ROOKIE","ARENA")){
+   if(!arenaResultHandled){arenaBattles++;arenaResultHandled=true}
    phase=2
    return f.tapLabel("競技場結算下一步",.30f,.70f,.72f,.91f,
     "點擊進行下一步","点击进行下一步")?:f.tap("競技場結算",.50f,.85f)
@@ -89,6 +91,12 @@ object DailyScreenParts {
    phase=1
    return f.tapLabel("開始快速戰鬥",.46f,.94f,.73f,.94f,
     "進入戰鬥","进入战斗")
+  }
+  if(phase==2 && f.has("ROOKIEARENA","新人競技場") &&
+     !f.has("DEFEAT","VICTORY")){
+   arenaResultHandled=false
+   if(arenaBattles>=3){phase=3;return f.tap("競技場完成返回首頁",.24f,.95f)}
+   phase=0
   }
   if(f.has("ROOKIEARENA","新人競技場") && f.has("進入戰鬥","进入战斗")){
    // PDF marks the third opponent. Only click the bottom row.
