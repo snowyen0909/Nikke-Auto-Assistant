@@ -226,7 +226,7 @@ class CaptureService : Service() {
      val monster=if(Settings.map && outdoorMap && enlargedMap==null)
       blueCore ?: MapDetector.redRingMonster(bitmap) else null
      val marker=if(Settings.map && outdoorMap && enlargedMap==null)
-      MapDetector.navigationDiamond(bitmap) else null
+      MapDetector.navigationDiamond(bitmap,false,assets) else null
      val overhead=if(Settings.map && outdoorMap && monster==null)
       MapDetector.overheadEnemyMarker(bitmap,marker) else null
      // Extra variants only act as FALLBACK when original detectors found
