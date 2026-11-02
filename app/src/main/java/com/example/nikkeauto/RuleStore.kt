@@ -10,6 +10,7 @@ object RuleStore {
   val name:String,
   val method:String="OCR",
   val target:String="",
+  val imageName:String="",
   val region:String="FULL",
   val success:String="TAP",
   val failure:String="RETRY",
@@ -29,7 +30,7 @@ object RuleStore {
     val o=arr.getJSONObject(i)
     result.add(Rule(
      o.optString("name","步驟 ${i+1}"),o.optString("method","OCR"),
-     o.optString("target",""),o.optString("region","FULL"),
+     o.optString("target",""),o.optString("imageName",""),o.optString("region","FULL"),
      o.optString("success","TAP"),o.optString("failure","RETRY"),
      o.optLong("delayMs",3000),o.optInt("attempts",3),
      o.optBoolean("enabled",true)))
@@ -44,6 +45,7 @@ object RuleStore {
   items.forEach { r ->
    arr.put(JSONObject().apply{
     put("name",r.name);put("method",r.method);put("target",r.target)
+    put("imageName",r.imageName)
     put("region",r.region);put("success",r.success);put("failure",r.failure)
     put("delayMs",r.delayMs.coerceIn(500,15000))
     put("attempts",r.attempts.coerceIn(0,10));put("enabled",r.enabled)
@@ -73,7 +75,7 @@ object RuleStore {
     val method=o.optString("method","OCR")
     require(method in listOf("OCR","IMAGE","BOTH"))
     list.add(Rule(o.optString("name","步驟 ${i+1}").take(80),method,
-     o.optString("target","").take(160),o.optString("region","FULL"),
+     o.optString("target","").take(160),o.optString("imageName","").take(80),o.optString("region","FULL"),
      o.optString("success","TAP"),o.optString("failure","RETRY"),
      o.optLong("delayMs",3000),o.optInt("attempts",3),
      o.optBoolean("enabled",true)))
