@@ -61,6 +61,7 @@ object DailyRoutine {
   states.clear();sameAction="";sameCount=0;lastTap=0L
   DailyScreenParts.reset()
   DailyCommon.reset()
+  DailyDebug.reset()
   lastX=-1f;lastY=-1f;stepStart=SystemClock.elapsedRealtime()
   advanceDisabled()
   if(active)status="請切換至遊戲，執行：${steps[index].title}"
