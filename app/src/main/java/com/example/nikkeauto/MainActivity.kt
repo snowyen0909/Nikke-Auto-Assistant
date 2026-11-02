@@ -35,6 +35,7 @@ OCR: ${Settings.lastRecognized.take(95)}""".trimIndent()
   }
  }
  override fun onCreate(savedInstanceState:Bundle?){super.onCreate(savedInstanceState)
+  DailyDebug.load(this)
   if(BuildConfig.FLAVOR=="modern"){
    modernStatus=ModernUi.create(this,
     permissions={startActivity(Intent(AndroidSettings.ACTION_ACCESSIBILITY_SETTINGS))},
