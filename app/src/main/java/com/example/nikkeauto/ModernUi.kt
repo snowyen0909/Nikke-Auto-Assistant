@@ -61,7 +61,7 @@ object ModernUi {
   })
  }
  private fun page(a:Activity):Pair<ScrollView,LinearLayout>{
-  val s=ScrollView(a).apply{fillViewport=true}
+  val s=ScrollView(a).apply{isFillViewport=true}
   val body=col(a).apply{setPadding(dp(a,18),dp(a,20),dp(a,18),dp(a,26))}
   s.addView(body)
   return s to body
