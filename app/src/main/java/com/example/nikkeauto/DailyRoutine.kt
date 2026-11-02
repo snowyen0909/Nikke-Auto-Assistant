@@ -62,6 +62,7 @@ object DailyRoutine {
   DailyScreenParts.reset()
   DailyCommon.reset()
   DailyDebug.reset()
+  RuleEngine.reset()
   lastX=-1f;lastY=-1f;stepStart=SystemClock.elapsedRealtime()
   advanceDisabled()
   if(active)status="請切換至遊戲，執行：${steps[index].title}"
@@ -69,6 +70,11 @@ object DailyRoutine {
  @Synchronized fun pause(){paused=true;status="日常流程已暫停"}
  @Synchronized fun resume(){if(active){paused=false;status="繼續：${steps[index].title}"}}
  @Synchronized fun stop(){active=false;paused=false;status="已停止"}
+ @Synchronized fun completeRuleModule(){
+  if(!active)return
+  states[steps[index].id]="規則流程已完成"
+  advance()
+ }
  @Synchronized fun skip(){
   if(!active)return
   states[steps[index].id]="人工確認／略過"
