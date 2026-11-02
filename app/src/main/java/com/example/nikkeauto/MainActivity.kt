@@ -111,6 +111,16 @@ OCR: ${Settings.lastRecognized.take(95)}""".trimIndent()
   Settings.paused=paused
   startService(Intent(this,CaptureService::class.java).setAction(if(paused)"com.example.nikkeauto.PAUSE" else "com.example.nikkeauto.RESUME"))
  }
+ override fun onResume(){
+  super.onResume()
+  if(OverlayControls.permissionPending && android.provider.Settings.canDrawOverlays(this)){
+   OverlayControls.permissionPending=false
+   if(!OverlayControls.visible){
+    try{startService(Intent(this,OverlayService::class.java))}
+    catch(e:Exception){Toast.makeText(this,"無法啟動浮窗：${e.javaClass.simpleName}",Toast.LENGTH_LONG).show()}
+   }
+  }
+ }
  override fun onDestroy(){handler.removeCallbacks(refresh);super.onDestroy()}
  @Deprecated("Legacy activity result")
  override fun onActivityResult(requestCode:Int,resultCode:Int,data:Intent?){
