@@ -25,7 +25,7 @@ class CaptureService : Service() {
  private var reader: ImageReader? = null
  private var projection: MediaProjection? = null
  private var display: android.hardware.display.VirtualDisplay? = null
- private var busy = false
+ @Volatile private var busy = false
  private var captureStartedAt = 0L
  private var lastTap = 0L
  private var lastTarget = ""
