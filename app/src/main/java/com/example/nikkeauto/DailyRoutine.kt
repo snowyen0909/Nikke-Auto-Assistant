@@ -9,7 +9,6 @@ import kotlin.math.abs
 object DailyRoutine {
  data class Step(val id:String,val title:String,val detail:String)
  val steps=listOf(
-  Step("login","登入與公告","TOUCH TO CONTINUE；關閉登入公告"),
   Step("mail","信箱獎勵","開信箱、全部領取、確認獎勵"),
   Step("idle","掛機獎勵","防禦前哨基地 → 獲得獎勵 → 免費殲滅"),
   Step("dispatch","派遣公告欄","前哨基地 → 全部領取 → 全部派遣"),
@@ -34,7 +33,6 @@ object DailyRoutine {
  private var stepStart=0L
 
  @Synchronized fun isEnabled(id:String):Boolean=when(id){
-  "login"->Settings.dailyLogin
   "mail"->Settings.dailyMail
   "idle"->Settings.dailyIdle
   "dispatch"->Settings.dailyDispatch
@@ -47,7 +45,6 @@ object DailyRoutine {
  }
  @Synchronized fun setEnabled(id:String,on:Boolean) {
   when(id){
-   "login"->Settings.dailyLogin=on
    "mail"->Settings.dailyMail=on
    "idle"->Settings.dailyIdle=on
    "dispatch"->Settings.dailyDispatch=on
@@ -143,15 +140,6 @@ object DailyRoutine {
    has("方舟","商店","妮姬","好友")
   // Login and transient event notices use the same OCR-anchored component.
   val shared=DailyCommon.Frame(lines,width,height)
-  if(s.id=="login"){
-   if(shared.home() && !shared.has("公告","簽到","签到","伏特的每日探索")){
-    states[s.id]="已完成";advance();return null
-   }
-   val entering=DailyCommon.enter(shared)
-   if(entering!=null)return at(entering.name,entering.x,entering.y)
-   status="登入：等待登入文字、彈窗關閉圖示或主大廳"
-   return null
-  }
   // Event windows can appear while doing any daily task.
   DailyCommon.popup(shared)?.let {return at(it.name,it.x,it.y)}
   // Shared screen components from annotated mail, idle reward and arena PDFs.
