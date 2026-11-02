@@ -34,6 +34,7 @@ class OverlayService:Service(){
  override fun onCreate(){
   super.onCreate()
   wm=getSystemService(WINDOW_SERVICE) as WindowManager
+  OverlayControls.visible=true
   render()
   handler.post(tick)
  }
@@ -121,6 +122,7 @@ class OverlayService:Service(){
   wm.addView(view,lp)
  }
  override fun onDestroy(){
+  OverlayControls.visible=false
   handler.removeCallbacks(tick)
   root?.let{runCatching{wm.removeView(it)}}
   super.onDestroy()
