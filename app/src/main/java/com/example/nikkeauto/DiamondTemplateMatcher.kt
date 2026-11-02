@@ -47,7 +47,7 @@ object DiamondTemplateMatcher {
    Imgproc.Canny(gray,edge,70.0,160.0)
    val base=edgeTemplate(assets)?:return null
    val w=rgb.cols();val h=rgb.rows()
-   var bestScore=.28
+   var bestScore=.25
    var bestX=-1;var bestY=-1
    for(size in intArrayOf((w*.087).toInt(),(w*.102).toInt(),
                          (w*.116).toInt(),(w*.135).toInt())){
