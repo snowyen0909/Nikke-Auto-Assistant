@@ -90,7 +90,7 @@ object RuleEngine {
   // Only built-in verified templates currently supported.
   // Arbitrary user-provided IMAGE names must fail closed.
   val name=r.imageName.ifBlank{r.target}
-  val target:Pair<Float,Float>=when(name.uppercase()){
+  val target:Pair<Float,Float> = when(name.uppercase()){
    "BLUE_DIAMOND","藍色驚嘆號","藍色菱形" ->
     MapDetector.navigationDiamond(b,false,ctx.assets)?.let{it.x to it.y}
    "SKIP" -> SkipDetector.find(b)?.let{it.x to it.y}
