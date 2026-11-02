@@ -73,7 +73,7 @@ object RuleEngine {
    "BOTTOM"->ny>.62f
    "LEFT"->nx<.45f
    "RIGHT"->nx>.55f
-   "CENTER"->nx in .2f.. .8f && ny in .2f.. .8f
+   "CENTER"->nx in 0.2f..0.8f && ny in 0.2f..0.8f
    else->true
   }
  }
