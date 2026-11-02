@@ -137,3 +137,14 @@ Modern 控制台與日常頁面採用 Google Material Components for Android（M
 OpenCV 自身為 Apache-2.0 授權。此處採用獨立撰寫的 Kotlin 視覺實作，並未整合 Smart-AutoClicker（GPL-3.0）或第三方專案中授權不明的來源程式。
 
 注意：目前新版使用的是 OpenCV 輪廓偵測，尚未收集足夠真實樣本建立多尺度原圖模板庫；偵測的準確率及跨設備位置映射需要 Redmi 和其他 Android 設備實機驗證。
+
+
+## Modern Material 3 分頁導航
+
+依照使用者提供的三頁介面設計參考，Modern 改成**底部導覽列三分頁**，不用在首頁向下捲動尋找全部功能：
+
+- **總控台**：執行狀態、截圖與點擊數、開始／暫停／停止、無障礙與螢幕擷取授權、測試點擊。
+- **推圖設定**：劇情 SKIP、戰鬥準備、自動尋怪、巡弋探路等獨立開關。
+- **日常一條龍**：八項每日模組切換、執行狀態、開始、暫停／繼續、略過目前步驟、停止。
+
+這些分頁共用同一個 Android Activity 的原生 Material 3 元件與自動化狀態，不會因切換分頁重新啟動擷取服務。Classic 繼續維持簡易介面。原本的 `DailyRoutineActivity` 保留兼容，但 Modern 日常模組直接整合在第三個分頁。
