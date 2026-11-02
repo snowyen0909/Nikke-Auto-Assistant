@@ -148,3 +148,11 @@ OpenCV 自身為 Apache-2.0 授權。此處採用獨立撰寫的 Kotlin 視覺�
 - **日常一條龍**：八項每日模組切換、執行狀態、開始、暫停／繼續、略過目前步驟、停止。
 
 這些分頁共用同一個 Android Activity 的原生 Material 3 元件與自動化狀態，不會因切換分頁重新啟動擷取服務。Classic 繼續維持簡易介面。原本的 `DailyRoutineActivity` 保留兼容，但 Modern 日常模組直接整合在第三個分頁。
+
+
+## 圖片比對備援與效能修正
+
+- **實際圖片模板**：`app/src/main/assets/templates/blue_diamond_core.png` 為使用者提供的「!」導航菱形裁切縮小版本，用於 OpenCV Canny 邊緣特徵的多尺度 `matchTemplate`。
+- **保留先前辨識器**：原有 OpenCV 青色輪廓及 `MapDetector.navigationDiamond` 先執行，兩者都未找到時才調用 `DiamondTemplateMatcher.find`；模板結果額外驗證青藍外框，降低地形誤判。
+- **不卡主執行緒**：ML Kit OCR 結果與尋怪分析移到單一背景執行緒，`busy` 跨執行緒同步；若辨識 20 秒未完成，會暫停並提示重啟擷取。
+- **測試限制**：已使用雪地截圖離線比對外框位置，但 APK 的實際效能、不同手機畫面比例及縮放情形仍需實機驗證。模板並非機器學習模型。
