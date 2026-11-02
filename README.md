@@ -121,3 +121,19 @@ Modern 原生介面提供「日常一條龍」獨立頁面，各項可分別啟�
 這套流程使用 ML Kit OCR 及畫面相關文字約束進行保守點擊。圖片 PDF 為特定遊戲 UI、版本與語系示範；當 OCR 辨識不到或畫面不符合預期時會停止該動作，部分步驟需人工確認、返回首頁或按「略過至下一項」。**尚非完整、已實機驗證的一鍵全自動流程；不要在無人監看情況下運行。**
 
 目前不包含自動刪除郵件、付費商品購買、儲值及其他非 0 鑽石商品購買。完整測試應先逐一開啟模組並驗證觸控座標。
+
+
+## Material Design 3 與 OpenCV 視覺辨識
+
+Modern 控制台與日常頁面採用 Google Material Components for Android（Material 3 主題、MaterialButton、MaterialSwitch），Classic 操作介面維持備用版本。
+
+新的 `OpenCvVision.kt` 使用官方 Android OpenCV AAR（4.10.0）：HSV 青色外框篩選、形狀輪廓、亮色內部與深色驚嘆號驗證、候選中心定位。藍色導航辨識先嘗試 OpenCV，不適用或初始化失敗則回退原本的 `MapDetector.kt`，現有 `MapNavigationState.kt` 防重複導航機制保留。
+
+設計參考來源（**未直接複製第三方程式碼**）：
+- [Nain57/Smart-AutoClicker](https://github.com/Nain57/Smart-AutoClicker)：畫面辨識條件驅動點擊的架構概念
+- [jinpf/AutomatorX](https://github.com/jinpf/AutomatorX)：跨解析度圖形定位、確認才動作
+- [onlyfish79/recordAutoTestScript](https://github.com/onlyfish79/recordAutoTestScript)：影像匹配與觸控座標驗證思路
+
+OpenCV 自身為 Apache-2.0 授權。此處採用獨立撰寫的 Kotlin 視覺實作，並未整合 Smart-AutoClicker（GPL-3.0）或第三方專案中授權不明的來源程式。
+
+注意：目前新版使用的是 OpenCV 輪廓偵測，尚未收集足夠真實樣本建立多尺度原圖模板庫；偵測的準確率及跨設備位置映射需要 Redmi 和其他 Android 設備實機驗證。
