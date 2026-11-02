@@ -7,6 +7,7 @@ object Settings {
  @Volatile var running=false
  @Volatile var paused=false
  @Volatile var dailyMode=false
+ @Volatile var dailyLogin=true
  @Volatile var dailyMail=true
  @Volatile var dailyIdle=true
  @Volatile var dailyShop=true

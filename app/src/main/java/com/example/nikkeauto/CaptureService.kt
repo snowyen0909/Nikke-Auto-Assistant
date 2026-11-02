@@ -156,20 +156,6 @@ class CaptureService : Service() {
      val dailyText=if(dailyElements.isNotEmpty())dailyElements+lines else lines
      val all=lines.joinToString(" ") { it.first }.replace(" ","").uppercase()
      Settings.lastRecognized=all.take(110)
-     // Login and transient event popups are standard automation, shared by
-     // exploration and daily. Use actual OCR coordinates, never guessed X.
-     if(Settings.running && !Settings.paused && SystemClock.elapsedRealtime()>=dailyNextAllowedAt){
-      val frame=DailyCommon.Frame(dailyText,w,h)
-      val commonAction=DailyCommon.enter(frame)
-      if(commonAction!=null){
-       if(Settings.tap?.click(commonAction.x,commonAction.y)==true){
-        Settings.taps++
-        dailyNextAllowedAt=SystemClock.elapsedRealtime()+3000L
-        status("共用操作：${commonAction.name}")
-       }
-       return@addOnSuccessListener
-      }
-     }
      // Daily routine has exclusive priority over ordinary map/story automation.
      if(Settings.dailyMode && DailyRoutine.active){
       val nowDaily=SystemClock.elapsedRealtime()
@@ -177,32 +163,17 @@ class CaptureService : Service() {
        Settings.status="日常操作等待畫面穩定"
        return@addOnSuccessListener
       }
-      val moduleId=DailyRoutine.steps.getOrNull(DailyRoutine.index)?.id
-      // Edited rules override the built-in daily steps only when the module
-      // has enabled rules. All other modules keep their existing logic.
-      val custom=moduleId!=null && RuleEngine.active(this@CaptureService,moduleId)
-      val edited=if(custom && moduleId!=null)
-       RuleEngine.decide(this@CaptureService,moduleId,dailyText,w,h,bitmap) else null
-      val action=if(custom)edited?.let{DailyRoutine.Action(it.name,it.x,it.y)}
-       else DailyRoutine.decide(dailyText,w,h)
-      if(!custom && moduleId!=null && DailyRoutine.active && !DailyRoutine.paused){
-       if(action==null){
-        when(DailyDebug.onNoMatch(moduleId)){
-         DailyDebug.Failure.PAUSE->DailyRoutine.pause()
-         DailyDebug.Failure.SKIP->DailyRoutine.skip()
-         null->{}
-        }
-       } else DailyDebug.onMatch(moduleId)
-      }
-      if(action!=null && Settings.running && !Settings.paused && !DailyRoutine.paused){
+      val action=DailyRoutine.decide(dailyText,w,h)
+      if(action!=null && Settings.running && !Settings.paused){
        val sent=Settings.tap?.click(action.x,action.y) ?: false
        if(sent){
         Settings.taps++
-        if(custom)RuleEngine.onTapAccepted()
-        // Allow this task's transition animation to settle before next action.
-        dailyNextAllowedAt=SystemClock.elapsedRealtime()+
-         DailyDebug.nextDelay(moduleId?:"")
-       } else DailyRoutine.pause()
+        // Stop reading/clicking while transitions and reward animations play.
+        dailyNextAllowedAt=SystemClock.elapsedRealtime()+3000L
+       } else {
+        DailyRoutine.pause()
+        Settings.status="觸控未成功送出，已暫停日常任務"
+       }
       }
       Settings.status=DailyRoutine.status
       return@addOnSuccessListener

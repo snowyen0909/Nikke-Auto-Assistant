@@ -35,7 +35,6 @@ OCR: ${Settings.lastRecognized.take(95)}""".trimIndent()
   }
  }
  override fun onCreate(savedInstanceState:Bundle?){super.onCreate(savedInstanceState)
-  DailyDebug.load(this)
   if(BuildConfig.FLAVOR=="modern"){
    modernStatus=ModernUi.create(this,
     permissions={startActivity(Intent(AndroidSettings.ACTION_ACCESSIBILITY_SETTINGS))},
@@ -110,16 +109,6 @@ OCR: ${Settings.lastRecognized.take(95)}""".trimIndent()
   if(!Settings.running){Toast.makeText(this,"請先授權螢幕並啟動",Toast.LENGTH_SHORT).show();return}
   Settings.paused=paused
   startService(Intent(this,CaptureService::class.java).setAction(if(paused)"com.example.nikkeauto.PAUSE" else "com.example.nikkeauto.RESUME"))
- }
- override fun onResume(){
-  super.onResume()
-  if(OverlayControls.permissionPending && android.provider.Settings.canDrawOverlays(this)){
-   OverlayControls.permissionPending=false
-   if(!OverlayControls.visible){
-    try{startService(Intent(this,OverlayService::class.java))}
-    catch(e:Exception){Toast.makeText(this,"無法啟動浮窗：${e.javaClass.simpleName}",Toast.LENGTH_LONG).show()}
-   }
-  }
  }
  override fun onDestroy(){handler.removeCallbacks(refresh);super.onDestroy()}
  @Deprecated("Legacy activity result")
