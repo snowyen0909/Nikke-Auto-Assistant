@@ -99,9 +99,16 @@ object DailyRoutine {
   states[s.id]="執行中 · 階段 ${stage+1}"
   val all=lines.joinToString(" "){it.first}.replace(" ","").uppercase()
   fun has(vararg v:String)=v.any{all.contains(it.uppercase())}
-  fun find(vararg words:String)=lines.firstOrNull{line->
-   val t=line.first.replace(" ","").uppercase()
-   words.any{t.contains(it.uppercase())}
+  fun find(vararg words:String):Triple<String,Float,Float>? {
+   val query=words.map{it.replace(" ","").uppercase()}
+   // Prefer exact localized OCR elements, then shortest matching label.
+   // Long OCR lines commonly contain unrelated UI buttons.
+   return lines.filter{line->
+    val text=line.first.replace(" ","").uppercase()
+    query.any{text.contains(it)}
+   }.sortedWith(compareBy<Triple<String,Float,Float>> {
+    if(query.contains(it.first.replace(" ","").uppercase()))0 else 1
+   }.thenBy {it.first.length}).firstOrNull()
   }
   fun at(name:String,x:Float,y:Float):Action? {
    if(x<width*.03f || x>width*.97f || y<height*.035f || y>height*.97f)return null
