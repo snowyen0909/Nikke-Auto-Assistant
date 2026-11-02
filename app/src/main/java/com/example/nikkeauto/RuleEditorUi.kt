@@ -69,6 +69,12 @@ object RuleEditorUi {
   }
   fun render(){
    list.removeAllViews()
+   list.addView(TextView(a).apply{
+    text=if(RuleStore.customEnabled(a,id))
+     "● 自訂規則執行中。請先驗證各步驟及付費安全條件。"
+    else "● 目前執行原始日常邏輯。下方是已預先載入、可修改的原始步驟草稿；確認後才切換成自訂執行。"
+    textSize=14f;setPadding(8,6,8,14)
+   })
    RuleStore.rules(a,id).toList().forEachIndexed{index,rule->
     val row=LinearLayout(a).apply{orientation=LinearLayout.VERTICAL;setPadding(4,6,4,8)}
     row.addView(TextView(a).apply{
@@ -101,6 +107,15 @@ object RuleEditorUi {
    }
   }
   button("新增"){edit(null,::render)}
+  button("切換執行模式"){
+   val next=!RuleStore.customEnabled(a,id)
+   if(!next){RuleStore.setCustomEnabled(a,id,false);render()}
+   else MaterialAlertDialogBuilder(a)
+    .setTitle("啟用自訂規則？")
+    .setMessage("目前原始流程將切換為此處的可編輯規則。未設定圖片的步驟、付款／資源操作可能無法執行；請先完成每一步的定位與驗證。")
+    .setNegativeButton("取消",null)
+    .setPositiveButton("啟用"){_,_->RuleStore.setCustomEnabled(a,id,true);render()}.show()
+  }
   button("複製 JSON"){
    val clipboard=a.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
    clipboard.setPrimaryClip(ClipData.newPlainText("rules",RuleStore.export(a,id)))
