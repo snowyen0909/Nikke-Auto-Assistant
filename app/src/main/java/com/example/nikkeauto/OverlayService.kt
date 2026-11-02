@@ -110,7 +110,7 @@ class OverlayService:Service(){
    }
    action("下一步"){if(DailyRoutine.active)DailyRoutine.skip();render()}
    view.addView(row)
-   val open=MaterialButton(this).apply{
+   val open=Button(this).apply{
     text="開啟完整規則編輯器";isAllCaps=false
     setOnClickListener{
      val intent=Intent(this@OverlayService,RuleEditorActivity::class.java)
