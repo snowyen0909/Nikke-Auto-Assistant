@@ -93,7 +93,7 @@ object RuleEngine {
    "BLUE_DIAMOND","藍色驚嘆號","藍色菱形" ->
     MapDetector.navigationDiamond(b,false,ctx.assets)?.let{it.x to it.y}
    "SKIP" -> SkipDetector.find(b)?.let{it.x to it.y}
-   else->null
+   else->UserTemplateMatcher.find(ctx,b,r.target)
   }?:return null
   return if(region(target.first,target.second,b.width,b.height,r.region))
    target else null
