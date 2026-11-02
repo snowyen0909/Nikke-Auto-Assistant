@@ -106,6 +106,26 @@ object ModernUi {
   add(auth,button(a,"02 · 授權整個螢幕",TILE,capture),7)
   add(auth,button(a,"測試點擊",TILE,test),7)
   add(dashBody,auth,18)
+  val overlayCard=card(a,"浮窗與流程編輯")
+  add(overlayCard,button(a,"開啟／關閉遊戲內浮窗",TILE){
+   val wm=a.getSystemService(android.content.Context.WINDOW_SERVICE) as android.view.WindowManager
+   if(!android.provider.Settings.canDrawOverlays(a)){
+    a.startActivity(android.content.Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+     android.net.Uri.parse("package:"+a.packageName)))
+   }else{
+    if(OverlayControls.visible){
+     a.stopService(android.content.Intent(a,OverlayService::class.java))
+     OverlayControls.visible=false
+    }else{
+     a.startService(android.content.Intent(a,OverlayService::class.java))
+     OverlayControls.visible=true
+    }
+   }
+  },10)
+  add(overlayCard,button(a,"編輯全部日常規則",TILE){
+   a.startActivity(android.content.Intent(a,RuleEditorActivity::class.java))
+  },6)
+  add(dashBody,overlayCard,14)
   add(dashBody,text(a,"請先授權整個螢幕及無障礙服務，再切換到遊戲。",12f,false,MUTED),17)
 
   // Tab 2: map/battle controls from reference page 2.
@@ -133,7 +153,10 @@ object ModernUi {
    add(item,option(a,step.title,step.detail,DailyRoutine.isEnabled(step.id)){
     DailyRoutine.setEnabled(step.id,it)
    },5)
-   add(item,button(a,"調試設定 · ${step.title}",TILE){
+   add(item,button(a,"編輯步驟規則 · ${step.title}",TILE){
+    RuleEditorUi.open(a,step.id,step.title)
+   },2)
+   add(item,button(a,"重試與等待設定 · ${step.title}",TILE){
     DailyDebugUi.show(a,step.id,step.title)
    },2)
    add(list,item,10)
