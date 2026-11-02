@@ -178,8 +178,14 @@ class CaptureService : Service() {
        return@addOnSuccessListener
       }
       val moduleId=DailyRoutine.steps.getOrNull(DailyRoutine.index)?.id
-      val action=DailyRoutine.decide(dailyText,w,h)
-      if(moduleId!=null && DailyRoutine.active && !DailyRoutine.paused){
+      // Edited rules override the built-in daily steps only when the module
+      // has enabled rules. All other modules keep their existing logic.
+      val custom=moduleId!=null && RuleEngine.active(this@CaptureService,moduleId)
+      val edited=if(custom && moduleId!=null)
+       RuleEngine.decide(this@CaptureService,moduleId,dailyText,w,h,bitmap) else null
+      val action=if(custom)edited?.let{DailyRoutine.Action(it.name,it.x,it.y)}
+       else DailyRoutine.decide(dailyText,w,h)
+      if(!custom && moduleId!=null && DailyRoutine.active && !DailyRoutine.paused){
        if(action==null){
         when(DailyDebug.onNoMatch(moduleId)){
          DailyDebug.Failure.PAUSE->DailyRoutine.pause()
@@ -192,6 +198,7 @@ class CaptureService : Service() {
        val sent=Settings.tap?.click(action.x,action.y) ?: false
        if(sent){
         Settings.taps++
+        if(custom)RuleEngine.onTapAccepted()
         // Allow this task's transition animation to settle before next action.
         dailyNextAllowedAt=SystemClock.elapsedRealtime()+
          DailyDebug.nextDelay(moduleId?:"")
