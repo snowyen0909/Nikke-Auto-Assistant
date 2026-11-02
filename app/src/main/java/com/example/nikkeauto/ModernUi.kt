@@ -119,10 +119,10 @@ object ModernUi {
   add(mapBody,text(a,"地圖展開時優先關閉；導航後優先確認怪物，避免鏡頭來回跳轉。",12f,false,MUTED),18)
 
   // Tab 3: daily controls from reference page 3, embedded rather than separate Activity.
-  heading(a,routineBody,"DAILY ROUTINE  •  8 MODULES","日常一條龍","依照八份操作教學建立的日常流程")
+  heading(a,routineBody,"DAILY ROUTINE  •  9 MODULES","日常一條龍","九項日常任務・共用登入與彈窗處理")
   val dailyPanel=card(a,"✦ 日常執行狀態")
   val dailyState=text(a,"已停止",19f,true)
-  val dailyProgress=text(a,"0 / 8",12f,false,MUTED)
+  val dailyProgress=text(a,"0 / 9",12f,false,MUTED)
   add(dailyPanel,dailyState,12);add(dailyPanel,dailyProgress,8)
   add(dailyPanel,text(a,"未確認的畫面會停止點擊；升級及競技場預設關閉。",12f,false,MUTED),10)
   add(routineBody,dailyPanel,18)
