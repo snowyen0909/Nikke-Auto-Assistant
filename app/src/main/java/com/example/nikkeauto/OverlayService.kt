@@ -13,7 +13,8 @@ import android.view.MotionEvent
 import android.view.WindowManager
 import android.widget.LinearLayout
 import android.widget.TextView
-import com.google.android.material.button.MaterialButton
+import android.widget.Button
+import android.widget.Toast
 
 /** User-enabled, movable in-game overlay, not a full-screen touch blocker. */
 class OverlayService:Service(){
@@ -34,9 +35,20 @@ class OverlayService:Service(){
  override fun onCreate(){
   super.onCreate()
   wm=getSystemService(WINDOW_SERVICE) as WindowManager
-  OverlayControls.visible=true
-  render()
-  handler.post(tick)
+  if(!android.provider.Settings.canDrawOverlays(this)){
+   Toast.makeText(this,"請先允許顯示在其他應用程式上層",Toast.LENGTH_LONG).show()
+   stopSelf();return
+  }
+  try {
+   render()
+   OverlayControls.visible=true
+   handler.post(tick)
+  }catch(e:Exception){
+   OverlayControls.visible=false
+   android.util.Log.e("NikkeOverlay","浮窗初始化失敗",e)
+   Toast.makeText(this,"浮窗啟動失敗：${e.javaClass.simpleName}",Toast.LENGTH_LONG).show()
+   stopSelf()
+  }
  }
  private fun card(color:Int)=GradientDrawable().apply{
   setColor(color);cornerRadius=dp(16).toFloat()
@@ -79,7 +91,7 @@ class OverlayService:Service(){
    view.addView(readout)
    val row=LinearLayout(this)
    fun action(label:String,callback:()->Unit){
-    row.addView(MaterialButton(this).apply{
+    row.addView(Button(this).apply{
      text=label;isAllCaps=false;minWidth=0;setPadding(1,0,1,0)
      textSize=11f;setOnClickListener{callback()}
     },LinearLayout.LayoutParams(0,dp(42),1f))
@@ -103,7 +115,9 @@ class OverlayService:Service(){
     setOnClickListener{
      val intent=Intent(this@OverlayService,RuleEditorActivity::class.java)
       .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-     startActivity(intent)
+     try{startActivity(intent)}catch(e:Exception){
+      Toast.makeText(this@OverlayService,"無法開啟規則編輯器：${e.javaClass.simpleName}",Toast.LENGTH_LONG).show()
+     }
     }
    }
    view.addView(open)
