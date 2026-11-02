@@ -116,6 +116,8 @@ object MapDetector {
   * Shared for overhead enemy markers and offscreen camera-navigation markers.
   */
  fun navigationDiamond(b:Bitmap,mapExpanded:Boolean=false):Target? {
+  // Prefer actual OpenCV contour/shape detection; keep legacy matcher as backup.
+  OpenCvVision.blueDiamond(b,mapExpanded)?.let{return it}
   val w=b.width;val h=b.height
   val step=max(2,min(w,h)/260)
   val gw=(w+step-1)/step;val gh=(h+step-1)/step
