@@ -47,7 +47,8 @@ object DiamondTemplateMatcher {
    Imgproc.Canny(gray,edge,70.0,160.0)
    val base=edgeTemplate(assets)?:return null
    val w=rgb.cols();val h=rgb.rows()
-   var bestScore=.25
+   // Reject weak edge correlations; they selected snow textures as targets.
+   var bestScore=.67
    var bestX=-1;var bestY=-1
    for(size in intArrayOf((w*.087).toInt(),(w*.102).toInt(),
                          (w*.116).toInt(),(w*.135).toInt())){
@@ -96,6 +97,6 @@ object DiamondTemplateMatcher {
    val p=rgb.get(y,x)?:continue // RGBA image, RGB ordering
    if(p[2]>118 && p[1]>96 && p[2]>p[0]*1.20 && p[1]>p[0]*1.09)cyan++
   }
-  return cyan>=4
+  return cyan>=7
  }
 }
