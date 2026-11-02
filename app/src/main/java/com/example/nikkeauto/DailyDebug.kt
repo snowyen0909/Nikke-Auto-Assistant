@@ -12,8 +12,8 @@ object DailyDebug {
  enum class Failure { PAUSE, SKIP }
  data class Config(
   val postTapMs:Long=3000L,
-  val retryDelayMs:Long=3000L,
-  val retries:Int=1,
+  val retryDelayMs:Long=5000L,
+  val retries:Int=4,
   val failure:Failure=Failure.PAUSE
  )
  private val default=Config()
@@ -39,8 +39,8 @@ object DailyDebug {
   for(s in DailyRoutine.steps){
    val id=s.id
    configs[id]=Config(pref.getLong("${id}_post",3000L),
-    pref.getLong("${id}_delay",3000L),
-    pref.getInt("${id}_retries",1),
+    pref.getLong("${id}_delay",5000L),
+    pref.getInt("${id}_retries",4),
     runCatching{Failure.valueOf(pref.getString("${id}_failure","PAUSE")?:"PAUSE")}
      .getOrDefault(Failure.PAUSE))
   }
