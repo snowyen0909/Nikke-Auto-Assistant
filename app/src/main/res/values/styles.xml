@@ -16,6 +16,5 @@
   <item name="colorSurface">#121D29</item>
   <item name="colorOnSurface">#E4EAF2</item>
   <item name="android:windowIsFloating">true</item>
-  <item name="android:windowDimAmount">0.30</item>
  </style>
 </resources>
