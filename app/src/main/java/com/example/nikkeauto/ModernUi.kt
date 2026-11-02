@@ -109,8 +109,9 @@ object ModernUi {
   add(dashBody,text(a,"請先授權整個螢幕及無障礙服務，再切換到遊戲。",12f,false,MUTED),17)
 
   // Tab 2: map/battle controls from reference page 2.
-  heading(a,mapBody,"MAP  •  AUTOMATION","推圖與戰鬥","可單獨開關的畫面辨識功能")
+  heading(a,mapBody,"MAP  •  AUTOMATION","推圖與戰鬥","進入遊戲與公告關閉為預設功能")
   val mapCard=card(a,"◎ 大地圖與戰鬥")
+  add(mapCard,text(a,"✓ 預設：進入遊戲／關閉活動與簽到彈窗",13f,false,MINT),10)
   add(mapCard,option(a,"劇情與結算","SKIP / 結算推進",Settings.skip){Settings.skip=it},8)
   add(mapCard,option(a,"戰鬥準備","橘色快速戰鬥優先",Settings.battle){Settings.battle=it})
   add(mapCard,option(a,"地圖自動尋敵","藍色菱形、紅圈與 Boss",Settings.map){Settings.map=it})
@@ -119,18 +120,23 @@ object ModernUi {
   add(mapBody,text(a,"地圖展開時優先關閉；導航後優先確認怪物，避免鏡頭來回跳轉。",12f,false,MUTED),18)
 
   // Tab 3: daily controls from reference page 3, embedded rather than separate Activity.
-  heading(a,routineBody,"DAILY ROUTINE  •  9 MODULES","日常一條龍","九項日常任務・共用登入與彈窗處理")
+  heading(a,routineBody,"DAILY ROUTINE  •  8 MODULES","日常一條龍","八項日常任務・登入與公告已整合推圖")
   val dailyPanel=card(a,"✦ 日常執行狀態")
   val dailyState=text(a,"已停止",19f,true)
-  val dailyProgress=text(a,"0 / 9",12f,false,MUTED)
+  val dailyProgress=text(a,"0 / 8",12f,false,MUTED)
   add(dailyPanel,dailyState,12);add(dailyPanel,dailyProgress,8)
   add(dailyPanel,text(a,"未確認的畫面會停止點擊；升級及競技場預設關閉。",12f,false,MUTED),10)
   add(routineBody,dailyPanel,18)
   val list=card(a,"日常功能")
   for(step in DailyRoutine.steps){
-   add(list,option(a,step.title,step.detail,DailyRoutine.isEnabled(step.id)){
+   val item=col(a)
+   add(item,option(a,step.title,step.detail,DailyRoutine.isEnabled(step.id)){
     DailyRoutine.setEnabled(step.id,it)
    },5)
+   add(item,button(a,"調試設定 · ${step.title}",TILE){
+    DailyDebugUi.show(a,step.id,step.title)
+   },2)
+   add(list,item,10)
   }
   add(routineBody,list,14)
   add(routineBody,button(a,"開始日常一條龍",MINT){
