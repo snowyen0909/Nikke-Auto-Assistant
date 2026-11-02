@@ -11,6 +11,7 @@ object DailyRoutine {
  val steps=listOf(
   Step("login","登入與公告","TOUCH TO CONTINUE；關閉登入公告"),
   Step("mail","信箱獎勵","開信箱、全部領取、確認獎勵"),
+  Step("idle","掛機獎勵","防禦前哨基地 → 獲得獎勵 → 免費殲滅"),
   Step("dispatch","派遣公告欄","前哨基地 → 全部領取 → 全部派遣"),
   Step("shop","商店每日免費商品","普通商店信用點，僅允許鑽石消耗為 0"),
   Step("gift","每日免費禮包","付費商店 → 普通禮包 → 每日 → 免費"),
@@ -35,6 +36,7 @@ object DailyRoutine {
  @Synchronized fun isEnabled(id:String):Boolean=when(id){
   "login"->Settings.dailyLogin
   "mail"->Settings.dailyMail
+  "idle"->Settings.dailyIdle
   "dispatch"->Settings.dailyDispatch
   "shop"->Settings.dailyShop
   "gift"->Settings.dailyGift
@@ -47,6 +49,7 @@ object DailyRoutine {
   when(id){
    "login"->Settings.dailyLogin=on
    "mail"->Settings.dailyMail=on
+   "idle"->Settings.dailyIdle=on
    "dispatch"->Settings.dailyDispatch=on
    "shop"->Settings.dailyShop=on
    "gift"->Settings.dailyGift=on
@@ -59,6 +62,7 @@ object DailyRoutine {
  @Synchronized fun start(){
   active=true;paused=false;index=0;completed=0;stage=0
   states.clear();sameAction="";sameCount=0;lastTap=0L
+  DailyScreenParts.reset()
   lastX=-1f;lastY=-1f;stepStart=SystemClock.elapsedRealtime()
   advanceDisabled()
   if(active)status="請切換至遊戲，執行：${steps[index].title}"
@@ -118,6 +122,18 @@ object DailyRoutine {
    tap("關閉 REWARD 獎勵畫面",.48f,.65f) else null
   fun home()=has("付費商店","前哨基地","作戰出擊","隊員招募") &&
    has("方舟","商店","妮姬","好友")
+  // Shared screen components from annotated mail, idle reward and arena PDFs.
+  // They require page-specific OCR cues and region checks before any tap.
+  if(s.id=="mail" || s.id=="arena" || s.id=="idle"){
+   val frame=DailyScreenParts.Frame(lines,width,height)
+   if(DailyScreenParts.completed(s.id,frame)){
+    states[s.id]="已完成";advance();return null
+   }
+   val action=DailyScreenParts.decide(s.id,frame)
+   if(action!=null)return at(action.name,action.x,action.y)
+   status="${s.title}：等待已知畫面或人工確認"
+   return null
+  }
   // The annotated PDFs demonstrate each screen; unexpected views are not tapped.
   when(s.id){
    "login"->{
