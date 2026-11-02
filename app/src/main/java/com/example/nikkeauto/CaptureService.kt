@@ -156,6 +156,20 @@ class CaptureService : Service() {
      val dailyText=if(dailyElements.isNotEmpty())dailyElements+lines else lines
      val all=lines.joinToString(" ") { it.first }.replace(" ","").uppercase()
      Settings.lastRecognized=all.take(110)
+     // Login and transient event popups are standard automation, shared by
+     // exploration and daily. Use actual OCR coordinates, never guessed X.
+     if(Settings.running && !Settings.paused && SystemClock.elapsedRealtime()>=dailyNextAllowedAt){
+      val frame=DailyCommon.Frame(dailyText,w,h)
+      val commonAction=DailyCommon.enter(frame)
+      if(commonAction!=null){
+       if(Settings.tap?.click(commonAction.x,commonAction.y)==true){
+        Settings.taps++
+        dailyNextAllowedAt=SystemClock.elapsedRealtime()+3000L
+        status("共用操作：${commonAction.name}")
+       }
+       return@addOnSuccessListener
+      }
+     }
      // Daily routine has exclusive priority over ordinary map/story automation.
      if(Settings.dailyMode && DailyRoutine.active){
       val nowDaily=SystemClock.elapsedRealtime()
