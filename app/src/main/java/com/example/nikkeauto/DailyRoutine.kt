@@ -118,8 +118,19 @@ object DailyRoutine {
    val match=find(*words)?:return null
    return at(name,match.second,match.third)
   }
-  fun reward():Action?=if(has("REWARD") && (has("點擊領取獎勵","点击领取奖励","領取獎勵","獎勵","奖励")))
-   tap("關閉 REWARD 獎勵畫面",.48f,.65f) else null
+  // Prefer OCR button bounds when a readable label is available.
+  // REWARD by itself is not a reason to tap an arbitrary position.
+  fun reward():Action? {
+   if(!has("REWARD"))return null
+   val button=lines.firstOrNull{line->
+    val text=line.first.replace(" ","")
+    (text.contains("點擊領取獎勵") || text.contains("点击领取奖励") ||
+     text.contains("點擊進行下一步") || text.contains("点击进行下一步")) &&
+     line.second in (width*.20f)..(width*.80f) &&
+     line.third in (height*.45f)..(height*.90f)
+   }?:return null
+   return at("確認 REWARD 獎勵",button.second,button.third)
+  }
   fun home()=has("付費商店","前哨基地","作戰出擊","隊員招募") &&
    has("方舟","商店","妮姬","好友")
   // Shared screen components from annotated mail, idle reward and arena PDFs.
@@ -137,7 +148,7 @@ object DailyRoutine {
   // The annotated PDFs demonstrate each screen; unexpected views are not tapped.
   when(s.id){
    "login"->{
-    if(has("TOUCHTOCONTINUE"))return tap("進入遊戲",.48f,.81f)
+    if(has("TOUCHTOCONTINUE"))return label("進入遊戲","TOUCH TO CONTINUE","TOUCHTOCONTINUE")
     if(has("公告") && has("活動公告","系統公告"))return tap("關閉公告",.88f,.105f)
     if(has("第三次地面收復戰","TRAILMARKER","NEWCHAPTER"))return tap("關閉活動彈窗",.85f,.19f)
     reward()?.let{return it}
