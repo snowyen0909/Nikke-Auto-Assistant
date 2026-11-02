@@ -33,6 +33,8 @@ class CaptureService : Service() {
  private var lastLoggedAt = 0L
  private var failureHandled = false
  private var lastMinimapClose = 0L
+ private var unlockAttempts = 0
+ private var lastUnlockTap = 0L
  private var lastTargetX = -1f
  private var lastTargetY = -1f
  private val mapState=MapNavigationState()
@@ -171,6 +173,13 @@ class CaptureService : Service() {
       val t=it.first.replace(" ","")
       t.contains("點擊任意處") || t.contains("点击任意处") || t.contains("進行下一步") || t.contains("进行下一步")
      }
+     // A full-screen UNLOCK announcement obscures map and other targets.
+     // Require both the English header and the bottom click-to-continue
+     // instruction to avoid mistaking an ordinary game label for a dialog.
+     val unlockOverlay=all.contains("UNLOCK") &&
+      (all.contains("點擊繼續") || all.contains("点击继续") ||
+       all.contains("點擊以繼續") || all.contains("点击以继续"))
+     if(!unlockOverlay)unlockAttempts=0
      val failed=all.contains("OPERATIONFAILED") ||
       (all.contains("OPERATION") && all.contains("FAILED")) ||
       (all.contains("逾時") && (all.contains("重新挑戰") || all.contains("編隊") || all.contains("编队")))
@@ -224,6 +233,9 @@ class CaptureService : Service() {
       mapState.phase==MapNavigationState.Phase.AWAITING_MONSTER)
      val idleMap=Settings.map && outdoorMap && monster==null && marker==null && boss==null
      val target:Triple<String,Float,Float>?=when {
+      unlockOverlay && (Settings.map || Settings.skip) && unlockAttempts<3 &&
+       SystemClock.elapsedRealtime()-lastUnlockTap>=1800L ->
+       Triple("unlock-continue",w*.50f,h*.59f)
       failed && !failureHandled -> Triple("failed-return",w*.16f,h*.943f)
       Settings.skip && popup -> Triple("upgrade-popup",w*.50f,h*.76f)
       Settings.skip && visibleSkip!=null -> Triple("skip-visible",skipTapX,skipTapY)
@@ -244,6 +256,15 @@ class CaptureService : Service() {
        Triple("map-boss",boss.x,boss.y)
       else -> null
      }
+      if(unlockOverlay && unlockAttempts>=3){
+       Settings.paused=true
+       status("UNLOCK 解鎖提示未能關閉，已暫停防止連點")
+       return@addOnSuccessListener
+      }
+      if(unlockOverlay && target==null){
+       status("等待 UNLOCK 解鎖提示關閉後再尋怪")
+       return@addOnSuccessListener
+      }
       if(target!=null) {
        noTargetSince=0L
        if(lastTarget==target.first) stable++ else {lastTarget=target.first;stable=1}
@@ -261,6 +282,11 @@ class CaptureService : Service() {
         val tap=Settings.tap
         if(tap!=null && tap.click(target.second,target.third)) {
          Settings.taps++
+         if(target.first=="unlock-continue"){
+          unlockAttempts++
+          lastUnlockTap=now
+          mapState.reset()
+         }
          if(target.first=="map-nav" || target.first=="map-monster" ||
           target.first=="close-minimap")
           mapState.onTapAccepted(target.first,target.second,target.third,now)
