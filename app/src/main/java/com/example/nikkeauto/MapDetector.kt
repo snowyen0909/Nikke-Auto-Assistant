@@ -195,52 +195,16 @@ object MapDetector {
  fun overheadEnemyMarker(b:Bitmap,marker:Target?):Target? {
   if(marker==null)return null
   val w=b.width;val h=b.height
-  val mx=marker.x.toInt();val my=marker.y.toInt()
-  // In the user's 565 px wide screenshot, the diamond is at y≈550,
-  // enemy at y≈625, and the blue-core/red-ring is at y≈675.
-  // Search only directly below the marker to avoid unrelated red terrain.
-  val minDy=(w*.13f).toInt()
-  val maxDy=(w*.34f).toInt()
-  val step=max(3,w/125)
-  var best:Target?=null
-  for(cy in my+minDy..min(h-1,my+maxDy) step step*2)
-   for(cx in max(0,mx-(w*.095f).toInt())..min(w-1,mx+(w*.095f).toInt()) step step*2){
-    val center=b.getPixel(cx,cy)
-    val cr=Color.red(center);val cg=Color.green(center);val cb=Color.blue(center)
-    // The middle of the target's ground disc is visibly BLUE.
-    if(cb<100 || cb<cr*1.12f || cb<cg*.88f)continue
-    var blue=0
-    for(dy in -step*2..step*2 step step)
-     for(dx in -step*2..step*2 step step){
-      val xx=cx+dx;val yy=cy+dy
-      if(xx !in 0 until w || yy !in 0 until h)continue
-      val p=b.getPixel(xx,yy)
-      if(Color.blue(p)>100 && Color.blue(p)>Color.red(p)*1.10f)blue++
-     }
-    if(blue<4)continue
-    var maxRed=0
-    // Multiple elliptical sizes support different device resolutions.
-    for(rx in intArrayOf((w*.065f).toInt(),(w*.09f).toInt(),(w*.115f).toInt())){
-     val ry=max(8,(rx*.53f).toInt())
-     var red=0
-     for(k in 0 until 32){
-      val angle=k*Math.PI/16
-      val px=cx+(rx*cos(angle)).toInt()
-      val py=cy+(ry*sin(angle)).toInt()
-      if(px !in 0 until w || py !in 0 until h)continue
-      val p=b.getPixel(px,py)
-      val r=Color.red(p);val g=Color.green(p);val bl=Color.blue(p)
-      if(r>119 && r>g*1.17f && r>bl*1.12f)red++
-     }
-     maxRed=max(maxRed,red)
-    }
-    if(maxRed<6)continue
-    val score=maxRed*5+blue-(abs(cx-mx)/step)
-    // Aim at enemy body, not the ground ring or the diamond itself.
-    val clickY=(cy-w*.11f).coerceIn(h*.15f,h*.86f)
-    if(best==null || score>best.score)best=Target(cx.toFloat(),clickY,score)
+  var reds=0
+  val x=marker.x.toInt();val y=marker.y.toInt()
+  for(dy in (w*.08f).toInt()..(w*.30f).toInt() step max(3,w/90))
+   for(dx in -(w*.17f).toInt()..(w*.17f).toInt() step max(3,w/100)){
+    val xx=x+dx;val yy=y+dy
+    if(xx !in 0 until w || yy !in 0 until h)continue
+    val p=b.getPixel(xx,yy);val r=Color.red(p);val g=Color.green(p);val bl=Color.blue(p)
+    if(r>140 && r>g*1.3f && r>bl*1.3f && g>35)reds++
    }
-  return best
+  return if(reds>=5)Target(marker.x,(marker.y+w*.18f).coerceAtMost(h*.83f),reds) else null
  }
 
  /** Boss portal: broad saturated red/orange glowing ground zone, not a tiny enemy ring. */
