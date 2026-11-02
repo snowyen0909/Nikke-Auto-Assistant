@@ -115,7 +115,7 @@ object MapDetector {
  /** Cyan-bordered diamond exclamation; return center, not an arbitrary cyan pixel.
   * Shared for overhead enemy markers and offscreen camera-navigation markers.
   */
- fun navigationDiamond(b:Bitmap,mapExpanded:Boolean=false):Target? {
+ fun navigationDiamond(b:Bitmap,mapExpanded:Boolean=false,assets:android.content.res.AssetManager?=null):Target? {
   // Prefer actual OpenCV contour/shape detection; keep legacy matcher as backup.
   OpenCvVision.blueDiamond(b,mapExpanded)?.let{return it}
   val w=b.width;val h=b.height
@@ -189,7 +189,8 @@ object MapDetector {
    val score=white*2+tail+directions*10
    if(best==null || score>best.score)best=Target(cx.toFloat(),cy.toFloat(),score)
   }
-  return best
+  // New exact-image backup only when legacy recognition fails.
+  return best ?: assets?.let { DiamondTemplateMatcher.find(b,it,mapExpanded) }
  }
  /** Marker above a directly visible enemy: a red combat ring just below it. */
  fun overheadEnemyMarker(b:Bitmap,marker:Target?):Target? {
