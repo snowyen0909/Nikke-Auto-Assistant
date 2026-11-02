@@ -218,15 +218,29 @@ class CaptureService : Service() {
       MapDetector.navigationDiamond(bitmap) else null
      val overhead=if(Settings.map && outdoorMap && monster==null)
       MapDetector.overheadEnemyMarker(bitmap,marker) else null
-     // Prioritize the blue diamond. Recheck monsters after camera movement.
-     val offscreen=marker
+     // Extra variants only act as FALLBACK when original detectors found
+     // no ordinary red-ring target. Never override a known working match.
+     val cyanEnemy=if(Settings.map && outdoorMap && monster==null &&
+      enlargedMap==null && marker!=null)
+      EnemyTypes.cyanMarkedEnemy(bitmap,marker) else null
+     val orangeEnemy=if(Settings.map && outdoorMap && monster==null &&
+      enlargedMap==null && marker==null)
+      EnemyTypes.orangeMarkedEnemy(bitmap) else null
+     val extraMonster=cyanEnemy?.takeIf{it.confidence>=66}
+      ?:orangeEnemy?.takeIf{it.confidence>=58}
+     val visibleMonster=monster ?: extraMonster?.let{
+      MapDetector.Target(it.x,it.y,it.confidence)
+     }
+     // A marker confirmed to sit above a blue-core enemy is not a
+     // camera-navigation marker; tap the monster body instead.
+     val offscreen=if(cyanEnemy!=null && cyanEnemy.confidence>=66)null else marker
      val boss=if(Settings.map && outdoorMap && monster==null && marker==null && enlargedMap==null)
       MapDetector.bossPortal(bitmap) else null
      val mini=if(Settings.map && outdoorMap)MapDetector.minimapEnemyDirection(bitmap) else 0
      val nowMap=SystemClock.elapsedRealtime()
      // Map state machine has exclusive priority, including the overlay close.
      val mapChoice=if(Settings.map && outdoorMap && !Settings.paused)
-      mapState.next(w,h,enlargedMap,monster,overhead,offscreen,nowMap) else null
+      mapState.next(w,h,enlargedMap,visibleMonster,overhead,offscreen,nowMap) else null
      val mapBusy=Settings.map && outdoorMap && (enlargedMap!=null ||
       mapState.isCameraMoving || mapState.phase==MapNavigationState.Phase.CLOSING_MAP ||
       mapState.phase==MapNavigationState.Phase.APPROACHING_MONSTER ||
