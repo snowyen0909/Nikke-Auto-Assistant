@@ -89,13 +89,13 @@ object RuleEngine {
  private fun findImage(ctx:Context,b:Bitmap,r:RuleStore.Rule):Pair<Float,Float>?{
   // Only built-in verified templates currently supported.
   // Arbitrary user-provided IMAGE names must fail closed.
-  val target=when(r.target.uppercase()){
+  val target:Pair<Float,Float>=when(r.target.uppercase()){
    "BLUE_DIAMOND","藍色驚嘆號","藍色菱形" ->
-    MapDetector.navigationDiamond(b,false,ctx.assets)
-   "SKIP" -> SkipDetector.find(b)
+    MapDetector.navigationDiamond(b,false,ctx.assets)?.let{it.x to it.y}
+   "SKIP" -> SkipDetector.find(b)?.let{it.x to it.y}
    else->null
   }?:return null
-  return if(region(target.x,target.y,b.width,b.height,r.region))
-   target.x to target.y else null
+  return if(region(target.first,target.second,b.width,b.height,r.region))
+   target else null
  }
 }
