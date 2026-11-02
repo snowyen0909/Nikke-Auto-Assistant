@@ -39,7 +39,8 @@ object RuleEditorUi {
     form.addView(input);return input
    }
    val name=field("步驟名稱",old.name)
-   val target=field("文字關鍵字／模板名稱",old.target)
+   val target=field("OCR 文字關鍵字",old.target)
+   val image=field("圖片模板名稱（從浮窗編輯器匯入）",old.imageName)
    fun picker(label:String,choices:List<String>,value:String):Spinner{
     form.addView(TextView(a).apply{text=label})
     return spinner(a,choices,value).also{form.addView(it)}
@@ -57,7 +58,7 @@ object RuleEditorUi {
     .setNegativeButton("取消",null)
     .setPositiveButton("儲存"){_,_->
      val rule=RuleStore.Rule(name.text.toString().ifBlank{"步驟"},method.selectedItem.toString(),
-      target.text.toString(),region.selectedItem.toString(),success.selectedItem.toString(),
+      target.text.toString(),image.text.toString(),region.selectedItem.toString(),success.selectedItem.toString(),
       failure.selectedItem.toString(),
       (delay.text.toString().toLongOrNull()?:3000L).coerceIn(500,15000),
       (retries.text.toString().toIntOrNull()?:3).coerceIn(0,10),enabled.isChecked)
