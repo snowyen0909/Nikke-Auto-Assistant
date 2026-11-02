@@ -177,17 +177,25 @@ class CaptureService : Service() {
        Settings.status="日常操作等待畫面穩定"
        return@addOnSuccessListener
       }
+      val moduleId=DailyRoutine.steps.getOrNull(DailyRoutine.index)?.id
       val action=DailyRoutine.decide(dailyText,w,h)
-      if(action!=null && Settings.running && !Settings.paused){
+      if(moduleId!=null && DailyRoutine.active && !DailyRoutine.paused){
+       if(action==null){
+        when(DailyDebug.onNoMatch(moduleId)){
+         DailyDebug.Failure.PAUSE->DailyRoutine.pause()
+         DailyDebug.Failure.SKIP->DailyRoutine.skip()
+         null->{}
+        }
+       } else DailyDebug.onMatch(moduleId)
+      }
+      if(action!=null && Settings.running && !Settings.paused && !DailyRoutine.paused){
        val sent=Settings.tap?.click(action.x,action.y) ?: false
        if(sent){
         Settings.taps++
-        // Stop reading/clicking while transitions and reward animations play.
-        dailyNextAllowedAt=SystemClock.elapsedRealtime()+3000L
-       } else {
-        DailyRoutine.pause()
-        Settings.status="觸控未成功送出，已暫停日常任務"
-       }
+        // Allow this task's transition animation to settle before next action.
+        dailyNextAllowedAt=SystemClock.elapsedRealtime()+
+         DailyDebug.nextDelay(moduleId?:"")
+       } else DailyRoutine.pause()
       }
       Settings.status=DailyRoutine.status
       return@addOnSuccessListener
