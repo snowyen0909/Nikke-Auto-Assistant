@@ -239,12 +239,12 @@ class CaptureService : Service() {
       EnemyTypes.orangeMarkedEnemy(bitmap) else null
      val extraMonster=cyanEnemy?.takeIf{it.confidence>=66}
       ?:orangeEnemy?.takeIf{it.confidence>=58}
-     val visibleMonster=monster ?: extraMonster?.let{
-      MapDetector.Target(it.x,it.y,it.confidence)
-     }
-     // A marker confirmed to sit above a blue-core enemy is not a
-     // camera-navigation marker; tap the monster body instead.
-     val offscreen=if(cyanEnemy!=null && cyanEnemy.confidence>=66)null else marker
+     // The additional classifiers are diagnostic only. In the supplied
+     // recording their heuristic candidate can make the squad walk away
+     // from the real cyan navigation diamond. Never dispatch from them.
+     val visibleMonster=monster
+     // Do not suppress genuine navigation using an unverified extra classifier.
+     val offscreen=marker
      val boss=if(Settings.map && outdoorMap && monster==null && marker==null && enlargedMap==null)
       MapDetector.bossPortal(bitmap) else null
      val mini=if(Settings.map && outdoorMap)MapDetector.minimapEnemyDirection(bitmap) else 0
