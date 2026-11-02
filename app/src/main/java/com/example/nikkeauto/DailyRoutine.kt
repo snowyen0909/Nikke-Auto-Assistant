@@ -17,7 +17,7 @@ object DailyRoutine {
   Step("gift","每日免費禮包","付費商店 → 普通禮包 → 每日 → 免費"),
   Step("friends","好友愛心","好友 → 贈送 → 確認"),
   Step("upgrade","每日升級","低等級角色升級一次（消耗遊戲資源）"),
-  Step("arena","新人競技場","Rookie Arena 第三位對手／快速戰鬥")
+  Step("arena","新人競技場","2 次免費對戰／確認快速戰鬥 ON")
  )
  @Volatile var active=false
  @Volatile var paused=false
@@ -63,6 +63,7 @@ object DailyRoutine {
   active=true;paused=false;index=0;completed=0;stage=0
   states.clear();sameAction="";sameCount=0;lastTap=0L
   DailyScreenParts.reset()
+  DailyCommon.reset()
   lastX=-1f;lastY=-1f;stepStart=SystemClock.elapsedRealtime()
   advanceDisabled()
   if(active)status="請切換至遊戲，執行：${steps[index].title}"
@@ -140,6 +141,19 @@ object DailyRoutine {
   }
   fun home()=has("付費商店","前哨基地","作戰出擊","隊員招募") &&
    has("方舟","商店","妮姬","好友")
+  // Login and transient event notices use the same OCR-anchored component.
+  val shared=DailyCommon.Frame(lines,width,height)
+  if(s.id=="login"){
+   if(shared.home() && !shared.has("公告","簽到","签到","伏特的每日探索")){
+    states[s.id]="已完成";advance();return null
+   }
+   val entering=DailyCommon.enter(shared)
+   if(entering!=null)return at(entering.name,entering.x,entering.y)
+   status="登入：等待登入文字、彈窗關閉圖示或主大廳"
+   return null
+  }
+  // Event windows can appear while doing any daily task.
+  DailyCommon.popup(shared)?.let {return at(it.name,it.x,it.y)}
   // Shared screen components from annotated mail, idle reward and arena PDFs.
   // They require page-specific OCR cues and region checks before any tap.
   if(s.id=="mail" || s.id=="arena" || s.id=="idle"){
@@ -154,14 +168,6 @@ object DailyRoutine {
   }
   // The annotated PDFs demonstrate each screen; unexpected views are not tapped.
   when(s.id){
-   "login"->{
-    if(has("TOUCHTOCONTINUE"))return label("進入遊戲","TOUCH TO CONTINUE","TOUCHTOCONTINUE")
-    if(has("公告") && has("活動公告","系統公告"))return tap("關閉公告",.88f,.105f)
-    if(has("第三次地面收復戰","TRAILMARKER","NEWCHAPTER"))return tap("關閉活動彈窗",.85f,.19f)
-    reward()?.let{return it}
-    if(home()){states[s.id]="已完成";advance()}
-    else status="登入：等待遊戲首頁或已知彈窗"
-   }
    "mail"->{
     if(has("REWARD"))return reward()
     if(has("郵箱","郵件") && has("全部領取","全部领取")){
