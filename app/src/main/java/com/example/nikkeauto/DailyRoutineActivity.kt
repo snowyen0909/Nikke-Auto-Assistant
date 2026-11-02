@@ -10,6 +10,8 @@ import android.os.Handler
 import android.os.Looper
 import android.view.Gravity
 import android.widget.*
+import com.google.android.material.button.MaterialButton
+import com.google.android.material.materialswitch.MaterialSwitch
 
 /** Standalone native screen; no WebView or log collection. */
 class DailyRoutineActivity:Activity(){
@@ -29,8 +31,9 @@ class DailyRoutineActivity:Activity(){
  private fun add(parent:LinearLayout,child:android.view.View,gap:Int=0){
   parent.addView(child,LinearLayout.LayoutParams(-1,-2).apply{topMargin=dp(gap)})
  }
- private fun button(title:String,onClick:()->Unit)=Button(this).apply{
-  text=title;isAllCaps=false;setOnClickListener{onClick()}
+ private fun button(title:String,onClick:()->Unit)=MaterialButton(this).apply{
+  text=title;isAllCaps=false;cornerRadius=dp(18);minHeight=dp(52)
+  setOnClickListener{onClick()}
  }
  private val refresh=object:Runnable{
   override fun run(){
@@ -71,7 +74,7 @@ class DailyRoutineActivity:Activity(){
    views[step.id]=state
    add(left,state,7)
    card.addView(left,LinearLayout.LayoutParams(0,-2,1f))
-   card.addView(Switch(this).apply{
+   card.addView(MaterialSwitch(this).apply{
     isChecked=DailyRoutine.isEnabled(step.id)
     setOnCheckedChangeListener{_,on->DailyRoutine.setEnabled(step.id,on)}
    })
