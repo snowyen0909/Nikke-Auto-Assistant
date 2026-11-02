@@ -71,7 +71,9 @@ class MapNavigationState {
    return confirm("close-minimap",minimap,width,height,2)
   }
   closeAttempts=0
-  val immediate=monster ?: marker
+  // A cyan navigation diamond is never itself the monster tap target.
+  // Treating it as a monster after a camera jump made the squad walk randomly.
+  val immediate=monster
   // A jump must be followed by a sustained search for the monster, NOT another jump.
   if(now<monsterSearchUntil || phase==Phase.AWAITING_MONSTER){
    if(immediate!=null && now-lastMonster>2000L){
