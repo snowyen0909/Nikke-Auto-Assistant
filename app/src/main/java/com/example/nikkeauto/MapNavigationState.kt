@@ -74,14 +74,11 @@ class MapNavigationState {
   // A cyan navigation diamond is never itself the monster tap target.
   // Treating it as a monster after a camera jump made the squad walk randomly.
   val immediate=monster
-  // After a camera jump, a marker directly over a confirmed red-ring enemy
-  // is a valid monster target. Never use the raw diamond coordinate as a tap.
-  val postJumpEnemy=monster ?: marker
   // A jump must be followed by a sustained search for the monster, NOT another jump.
   if(now<monsterSearchUntil || phase==Phase.AWAITING_MONSTER){
-   if(postJumpEnemy!=null && now-lastMonster>2000L){
+   if(immediate!=null && now-lastMonster>2000L){
     noTargetSince=0L
-    return confirm("map-monster",postJumpEnemy,width,height,2)
+    return confirm("map-monster",immediate,width,height,2)
    }
    if(now<monsterSearchUntil){
     stableKind="";stable=0
