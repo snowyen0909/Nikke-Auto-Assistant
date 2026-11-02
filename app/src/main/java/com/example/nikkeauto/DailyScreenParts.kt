@@ -86,6 +86,19 @@ object DailyScreenParts {
    return f.tapLabel("競技場結算下一步",.30f,.70f,.72f,.91f,
     "點擊進行下一步","点击进行下一步")
   }
+  if(phase==2 && f.has("ROOKIEARENA","新人競技場") &&
+     !f.has("DEFEAT","VICTORY")){
+   arenaResultHandled=false
+   if(arenaBattles>=2){
+    phase=3
+    // Prefer an explicitly recognized Home control; otherwise stop.
+    return f.tapLabel("返回主大廳",.02f,.53f,.88f,.99f,"大廳","主頁","主页")
+   }
+   phase=0
+   // Refresh the opponent directory before battle #2.
+   return f.tapLabel("刷新競技場對手",.63f,.98f,.05f,.24f,
+    "更新目錄","更新目录")
+  }
   if(f.has("新人競技場","ROOKIEARENA") && f.has("快速戰鬥","快速战斗")
      && f.has("進入戰鬥","进入战斗")){
    // The PDF requires ON before combat. Avoid false positive 'ON' from
@@ -97,12 +110,6 @@ object DailyScreenParts {
    phase=1
    return f.tapLabel("開始快速戰鬥",.46f,.94f,.73f,.94f,
     "進入戰鬥","进入战斗")
-  }
-  if(phase==2 && f.has("ROOKIEARENA","新人競技場") &&
-     !f.has("DEFEAT","VICTORY")){
-   arenaResultHandled=false
-   if(arenaBattles>=2){phase=3;return f.tap("競技場完成返回首頁",.24f,.95f)}
-   phase=0
   }
   if(f.has("ROOKIEARENA","新人競技場") && f.has("進入戰鬥","进入战斗")){
    // Prefer the third opponent free-entry button, restricted to lower row.
