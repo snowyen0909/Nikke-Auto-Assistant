@@ -7,6 +7,9 @@ import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
 import android.view.View
 import android.widget.*
+import com.google.android.material.button.MaterialButton
+import com.google.android.material.card.MaterialCardView
+import com.google.android.material.materialswitch.MaterialSwitch
 
 /** NOVA native dashboard, intentionally independent of the historical UI. */
 object ModernUi {
@@ -30,11 +33,12 @@ object ModernUi {
   add(this,txt(a,title,13f,true,MINT))
  }
  private fun action(a:Activity,title:String,color:Int,listener:()->Unit)=
-  TextView(a).apply{
-   text=title;textSize=14f;gravity=Gravity.CENTER
+  MaterialButton(a).apply{
+   text=title;textSize=13f;isAllCaps=false
+   cornerRadius=dp(a,18)
+   setBackgroundTintList(android.content.res.ColorStateList.valueOf(color))
    setTextColor(if(color==MINT)BG else Color.WHITE)
-   typeface=Typeface.DEFAULT_BOLD
-   background=shape(a,color);minimumHeight=dp(a,51)
+   minHeight=dp(a,54)
    setOnClickListener{listener()}
   }
  private fun switchItem(a:Activity,title:String,subtitle:String,checked:Boolean,on:(Boolean)->Unit):LinearLayout{
@@ -43,7 +47,7 @@ object ModernUi {
   add(l,txt(a,title,14f,true))
   add(l,txt(a,subtitle,11f,false,MUTED),3)
   r.addView(l,LinearLayout.LayoutParams(0,-2,1f))
-  r.addView(Switch(a).apply{isChecked=checked;setOnCheckedChangeListener{_,value->on(value)}})
+  r.addView(MaterialSwitch(a).apply{isChecked=checked;setOnCheckedChangeListener{_,value->on(value)}})
   return r
  }
  data class ViewRefs(val status:TextView,val details:TextView)
@@ -57,10 +61,10 @@ object ModernUi {
   val body=col(a).apply{setPadding(dp(a,18),dp(a,22),dp(a,18),dp(a,20))}
   scroll.addView(body)
   root.addView(scroll,LinearLayout.LayoutParams(-1,0,1f))
-  add(body,txt(a,"NOVA / AUTOMATION",12f,true,MINT))
-  add(body,txt(a,"NIKKE 控制中心",27f,true),5)
+  add(body,txt(a,"NIKKE  •  AUTOMATION",12f,true,MINT))
+  add(body,txt(a,"自動化總控台",27f,true),5)
   add(body,txt(a,"清楚、簡單、可隨時停止的遊戲輔助工具",12f,false,MUTED),5)
-  val monitor=block(a,"目前狀態")
+  val monitor=block(a,"● 系統狀態")
   val status=txt(a,"待機",23f,true)
   val details=txt(a,"等待無障礙服務和螢幕擷取",12f,false,MUTED)
   add(monitor,status,13);add(monitor,details,8)
@@ -76,12 +80,12 @@ object ModernUi {
   add(permission,action(a,"02 · 授權整個螢幕",TILE,capture),8)
   add(permission,action(a,"測試點擊",TILE,test),8)
   add(body,permission,20)
-  val dailyBlock=block(a,"每日任務")
+  val dailyBlock=block(a,"✦ 日常自動化")
   add(dailyBlock,txt(a,"日常一條龍",21f,true),10)
-  add(dailyBlock,txt(a,"前哨基地 · 派遣 · 免費禮包 · 好友愛心 · 每日獎勵",12f,false,MUTED),6)
+  add(dailyBlock,txt(a,"登入 · 信箱 · 派遣 · 免費商品 · 好友 · 升級 · 競技場",12f,false,MUTED),6)
   add(dailyBlock,action(a,"開啟日常專屬頁面",MINT,daily),12)
   add(body,dailyBlock,16)
-  val modules=block(a,"推圖自動化")
+  val modules=block(a,"◎ 大地圖與戰鬥")
   add(modules,switchItem(a,"劇情與結算","SKIP / 結算推進",Settings.skip){Settings.skip=it},7)
   add(modules,switchItem(a,"戰鬥準備","橘色快速戰鬥優先",Settings.battle){Settings.battle=it})
   add(modules,switchItem(a,"地圖自動尋敵","紅圈、驚嘆號與 Boss",Settings.map){Settings.map=it})
