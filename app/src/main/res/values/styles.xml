@@ -1,0 +1,14 @@
+<resources>
+ <style name="Theme.NikkeAuto" parent="Theme.Material3.DayNight.NoActionBar">
+  <item name="colorPrimary">#68E5CD</item>
+  <item name="colorOnPrimary">#062724</item>
+  <item name="colorSecondary">#A3C8FF</item>
+  <item name="colorSurface">#121D29</item>
+  <item name="colorOnSurface">#E4EAF2</item>
+  <item name="colorSurfaceVariant">#26384A</item>
+  <item name="android:statusBarColor">#0B1522</item>
+  <item name="android:navigationBarColor">#0B1522</item>
+  <item name="android:windowLightStatusBar">false</item>
+  <item name="android:windowActionModeOverlay">true</item>
+ </style>
+</resources>
