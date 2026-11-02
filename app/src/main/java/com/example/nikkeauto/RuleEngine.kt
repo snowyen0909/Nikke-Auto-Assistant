@@ -16,7 +16,7 @@ object RuleEngine {
  private var lastChecked=0L
  @Synchronized fun reset(){module="";step=0;misses=0;lastChecked=0L}
  @Synchronized fun active(ctx:Context,id:String):Boolean=
-  RuleStore.rules(ctx,id).any{it.enabled}
+  RuleStore.customEnabled(ctx,id) && RuleStore.rules(ctx,id).any{it.enabled}
  @Synchronized fun position():Int=step
  @Synchronized fun decide(ctx:Context,id:String,
   lines:List<Triple<String,Float,Float>>,w:Int,h:Int,
