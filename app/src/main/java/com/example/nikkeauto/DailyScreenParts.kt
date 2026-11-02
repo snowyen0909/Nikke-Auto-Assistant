@@ -26,7 +26,7 @@ object DailyScreenParts {
    if(!reward())return null
    return tapLabel("確認獎勵",.25f,.75f,.48f,.84f,
     "點擊領取獎勵","点击领取奖励","點擊進行下一步","点击进行下一步")
-    ?:tap("確認 REWARD",.50f,.68f)
+
   }
   fun topRightClose():Tap?=if(has("郵箱","邮箱","防禦前哨基地","防御前哨基地"))
     tap("關閉彈窗",.89f,.132f) else null
@@ -81,13 +81,16 @@ object DailyScreenParts {
    if(!arenaResultHandled){arenaBattles++;arenaResultHandled=true}
    phase=2
    return f.tapLabel("競技場結算下一步",.30f,.70f,.72f,.91f,
-    "點擊進行下一步","点击进行下一步")?:f.tap("競技場結算",.50f,.85f)
+    "點擊進行下一步","点击进行下一步")
   }
   if(f.has("新人競技場","ROOKIEARENA") && f.has("快速戰鬥","快速战斗")
      && f.has("進入戰鬥","进入战斗")){
    // The PDF requires ON before combat. Avoid false positive 'ON' from
    // other OCR text by using image switch + geometry in future.
-   if(!f.has("ON") || f.has("OFF"))return null
+   // Never accept a generic 'ON' substring anywhere on the screen.
+   // Switch state without a localized OCR label needs image confirmation.
+   val switchOn=f.label(.10f,.45f,.78f,.94f,"ON")
+   if(switchOn==null || f.label(.10f,.45f,.78f,.94f,"OFF")!=null)return null
    phase=1
    return f.tapLabel("開始快速戰鬥",.46f,.94f,.73f,.94f,
     "進入戰鬥","进入战斗")
