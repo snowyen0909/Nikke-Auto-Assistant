@@ -28,8 +28,11 @@ object DailyScreenParts {
     "點擊領取獎勵","点击领取奖励","點擊進行下一步","点击进行下一步")
 
   }
-  fun topRightClose():Tap?=if(has("郵箱","邮箱","防禦前哨基地","防御前哨基地"))
-    tap("關閉彈窗",.89f,.132f) else null
+  fun topRightClose():Tap? {
+   if(!has("郵箱","邮箱","防禦前哨基地","防御前哨基地",
+     "好友目錄","好友目录","派遣公告欄","派遣公告栏"))return null
+   return tapLabel("關閉彈窗",.72f,.98f,.04f,.24f,"X","×","✕","關閉","关闭")
+  }
  }
 
  /**
@@ -98,11 +101,11 @@ object DailyScreenParts {
   if(phase==2 && f.has("ROOKIEARENA","新人競技場") &&
      !f.has("DEFEAT","VICTORY")){
    arenaResultHandled=false
-   if(arenaBattles>=3){phase=3;return f.tap("競技場完成返回首頁",.24f,.95f)}
+   if(arenaBattles>=2){phase=3;return f.tap("競技場完成返回首頁",.24f,.95f)}
    phase=0
   }
   if(f.has("ROOKIEARENA","新人競技場") && f.has("進入戰鬥","进入战斗")){
-   // PDF marks the third opponent. Only click the bottom row.
+   // Prefer the third opponent free-entry button, restricted to lower row.
    return f.tapLabel("選擇第三位對手",.64f,.95f,.68f,.93f,
     "進入戰鬥","进入战斗")
   }
@@ -132,7 +135,9 @@ object DailyScreenParts {
       !freeWipeAttempted){
    // Only use the FREE daily wipe. If a gem price appears, the guard above
    // handles it first; unknown prices require manual review.
-   if(f.has("50","鑽石","钻石"))return null
+   // Positive confirmation of first-free status is mandatory.
+   if(!f.has("每日首次免費","每日首次免费","首次免費","首次免费") ||
+      f.has("50","鑽石","钻石"))return null
    freeWipeAttempted=true;phase=3
    return f.tapLabel("執行免費殲滅",.42f,.96f,.75f,.91f,
     "進行殲滅","进行歼灭")
