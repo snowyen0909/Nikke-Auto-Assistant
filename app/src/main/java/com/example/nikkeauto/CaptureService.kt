@@ -28,6 +28,8 @@ class CaptureService : Service() {
  @Volatile private var busy = false
  private var captureStartedAt = 0L
  private var lastTap = 0L
+ // Daily actions require a fresh settled frame after the prior gesture.
+ private var dailyNextAllowedAt = 0L
  private var lastTarget = ""
  private var stable = 0
  private var noTargetSince = 0L
@@ -143,14 +145,35 @@ class CaptureService : Service() {
      val lines=result.textBlocks.flatMap { it.lines }.mapNotNull { line ->
       line.boundingBox?.let { Triple(line.text, it.centerX().toFloat(), it.centerY().toFloat()) }
      }
+     // Daily controls use the smallest ML Kit text element's actual screen
+     // bounding-box center, not a merged line center (which may miss buttons).
+     val dailyElements=result.textBlocks.flatMap { it.lines }.flatMap { it.elements }
+      .mapNotNull { element ->
+       element.boundingBox?.let {
+        Triple(element.text,it.centerX().toFloat(),it.centerY().toFloat())
+       }
+      }
+     val dailyText=if(dailyElements.isNotEmpty())dailyElements+lines else lines
      val all=lines.joinToString(" ") { it.first }.replace(" ","").uppercase()
      Settings.lastRecognized=all.take(110)
      // Daily routine has exclusive priority over ordinary map/story automation.
      if(Settings.dailyMode && DailyRoutine.active){
-      val action=DailyRoutine.decide(lines,w,h)
+      val nowDaily=SystemClock.elapsedRealtime()
+      if(nowDaily<dailyNextAllowedAt){
+       Settings.status="日常操作等待畫面穩定"
+       return@addOnSuccessListener
+      }
+      val action=DailyRoutine.decide(dailyText,w,h)
       if(action!=null && Settings.running && !Settings.paused){
        val sent=Settings.tap?.click(action.x,action.y) ?: false
-       if(sent)Settings.taps++
+       if(sent){
+        Settings.taps++
+        // Stop reading/clicking while transitions and reward animations play.
+        dailyNextAllowedAt=SystemClock.elapsedRealtime()+3000L
+       } else {
+        DailyRoutine.pause()
+        Settings.status="觸控未成功送出，已暫停日常任務"
+       }
       }
       Settings.status=DailyRoutine.status
       return@addOnSuccessListener
