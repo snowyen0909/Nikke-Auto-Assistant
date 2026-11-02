@@ -15,14 +15,18 @@ import android.view.WindowManager
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions
+import java.util.concurrent.Executors
 
 class CaptureService : Service() {
  private val handler = Handler(Looper.getMainLooper())
  private val recognizer = TextRecognition.getClient(ChineseTextRecognizerOptions.Builder().build())
+ // OpenCV and pixel scans must never block the Android main/UI thread.
+ private val visionExecutor = Executors.newSingleThreadExecutor()
  private var reader: ImageReader? = null
  private var projection: MediaProjection? = null
  private var display: android.hardware.display.VirtualDisplay? = null
  private var busy = false
+ private var captureStartedAt = 0L
  private var lastTap = 0L
  private var lastTarget = ""
  private var stable = 0
@@ -111,7 +115,13 @@ class CaptureService : Service() {
  }
 
  private fun capture(w:Int,h:Int) {
-  if (busy) return
+  if (busy) {
+   if(SystemClock.elapsedRealtime()-captureStartedAt>20000L){
+    status("OCR／圖像辨識逾時，已暫停。請停止並重新啟動螢幕擷取")
+    Settings.paused=true
+   }
+   return
+  }
   val image = reader?.acquireLatestImage()
   if (image == null) {status("等待螢幕畫面（若持續顯示，請重新授權整個螢幕）");return}
   val bitmap: Bitmap
@@ -125,8 +135,9 @@ class CaptureService : Service() {
   } catch(e:Exception) {status("擷取影像失敗: ${e.javaClass.simpleName}");return}
   finally {image.close()}
   busy = true
+  captureStartedAt=SystemClock.elapsedRealtime()
   recognizer.process(InputImage.fromBitmap(bitmap,0))
-   .addOnSuccessListener { result ->
+   .addOnSuccessListener(visionExecutor) { result ->
     try {
      Settings.frames++
      val lines=result.textBlocks.flatMap { it.lines }.mapNotNull { line ->
@@ -341,9 +352,9 @@ class CaptureService : Service() {
       status("辨識處理失敗: ${e.javaClass.simpleName}")
      }
     }
-    .addOnFailureListener {status("OCR 失敗: ${it.javaClass.simpleName}")}
+    .addOnFailureListener(visionExecutor) {status("OCR 失敗: ${it.javaClass.simpleName}")}
 
-   .addOnCompleteListener {busy=false;bitmap.recycle()}
+   .addOnCompleteListener(visionExecutor) {busy=false;bitmap.recycle()}
  }
 
  private fun isBattlePanel(b:Bitmap):Boolean {
@@ -378,6 +389,7 @@ class CaptureService : Service() {
  override fun onDestroy(){
   Settings.running=false;Settings.paused=false;Settings.status="已停止"
   display?.release();reader?.close();projection?.stop();recognizer.close()
+  visionExecutor.shutdown()
   super.onDestroy()
  }
 }
