@@ -108,8 +108,8 @@ object ModernUi {
   add(dashBody,auth,18)
   val overlayCard=card(a,"浮窗與流程編輯")
   add(overlayCard,button(a,"開啟／關閉遊戲內浮窗",TILE){
-   val wm=a.getSystemService(android.content.Context.WINDOW_SERVICE) as android.view.WindowManager
    if(!android.provider.Settings.canDrawOverlays(a)){
+    OverlayControls.permissionPending=true
     a.startActivity(android.content.Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
      android.net.Uri.parse("package:"+a.packageName)))
    }else{
