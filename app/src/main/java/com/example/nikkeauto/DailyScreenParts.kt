@@ -36,15 +36,17 @@ object DailyScreenParts {
   fun topRightClose():Tap? {
    if(!has("郵箱","邮箱","防禦前哨基地","防御前哨基地",
      "好友目錄","好友目录","派遣公告欄","派遣公告栏"))return null
-   DailyTemplates.closeTop()?.let{return Tap("關閉彈窗",it.x,it.y)}
+   // Text first, image template only for the icon-only X.
+   tapLabel("關閉彈窗",.72f,.98f,.04f,.24f,"關閉","关闭")?.let{return it}
    val exact=labelExact(.72f,.98f,.04f,.24f,"X","×","✕")
    if(exact!=null)return Tap("關閉彈窗",exact.x,exact.y)
-   return tapLabel("關閉彈窗",.72f,.98f,.04f,.24f,"關閉","关闭")
+   return DailyTemplates.closeTop()?.let{Tap("關閉彈窗",it.x,it.y)}
   }
-  /** Bottom-bar home icon (template) with an OCR fallback. */
+  /** Bottom navigation "大廳" label first; the home-icon template is the fallback. */
   fun homeTap():Tap? {
-   DailyTemplates.homeBottom()?.let{return Tap("返回主大廳",it.x,it.y)}
-   return tapLabel("返回主大廳",.02f,.53f,.88f,.99f,"大廳","主頁","主页")
+   labelExact(.20f,.80f,.85f,.995f,"大廳","大厅","主頁","主页")?.let{return Tap("返回主大廳",it.x,it.y)}
+   tapLabel("返回主大廳",.20f,.80f,.85f,.995f,"大廳","大厅","主頁","主页")?.let{return it}
+   return DailyTemplates.homeBottom()?.let{Tap("返回主大廳",it.x,it.y)}
   }
  }
 
@@ -124,19 +126,22 @@ object DailyScreenParts {
   }
   if(f.has("新人競技場","ROOKIEARENA") && f.has("快速戰鬥","快速战斗")
      && f.has("進入戰鬥","进入战斗")){
-   // Quick-battle switch: image match first (ON/OFF crops), exact OCR as backup.
-   val sw=DailyTemplates.fastBattle()
+   // Quick-battle switch: read the ON/OFF text printed on the switch, found
+   // just below the "快速戰鬥" title. The ON/OFF image crops are the fallback.
    val isOn:Boolean
    var switchTap:Tap?=null
-   if(sw!=null){
+   val title=f.label(0f,1f,.45f,1f,"快速戰鬥","快速战斗")
+   fun nearTitle(l:Label)=title!=null && kotlin.math.abs(l.x-title.x)<f.w*.22f &&
+    l.y>title.y && l.y-title.y<f.h*.09f
+   val onText=f.labels.firstOrNull{it.text=="ON" && nearTitle(it)}
+   val offText=f.labels.firstOrNull{it.text=="OFF" && nearTitle(it)}
+   if(onText!=null || offText!=null){
+    isOn=offText==null
+    if(!isOn)switchTap=Tap("開啟快速戰鬥",offText!!.x,offText.y)
+   }else{
+    val sw=DailyTemplates.fastBattle()?:return null
     isOn=sw.first
     if(!isOn)switchTap=Tap("開啟快速戰鬥",sw.second.x,sw.second.y)
-   }else{
-    val on=f.labelExact(.10f,.45f,.78f,.94f,"ON")
-    val off=f.labelExact(.10f,.45f,.78f,.94f,"OFF")
-    if(on==null && off==null)return null
-    isOn=off==null
-    if(!isOn)switchTap=Tap("開啟快速戰鬥",off!!.x,off.y)
    }
    if(!isOn){
     if(switchTaps>=3)return null

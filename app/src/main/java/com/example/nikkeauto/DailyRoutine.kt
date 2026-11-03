@@ -118,7 +118,7 @@ object DailyRoutine {
    }.thenBy {it.first.length}).firstOrNull()
   }
   fun at(name:String,x:Float,y:Float):Action? {
-   if(x<width*.03f || x>width*.97f || y<height*.035f || y>height*.97f)return null
+   if(x<width*.03f || x>width*.97f || y<height*.035f || y>height*.985f)return null
    val moved=abs(x-lastX)>width*.035f || abs(y-lastY)>height*.04f
    sameCount=if(name==sameAction && !moved)sameCount+1 else 1
    sameAction=name;lastX=x;lastY=y
@@ -164,13 +164,27 @@ object DailyRoutine {
    budgets[key]=(budgets[key]?:0)+1
    return a
   }
-  /** Way back to the lobby: dialog X, bottom home icon, then a text "返回". */
+  /**
+   * Way back to the lobby, text first: bottom-bar "大廳", a "返回" label, a
+   * "關閉" label. Each text is tried at most twice (a popup may cover it);
+   * then the icon templates (dialog X, home icon) take over.
+   */
   fun goBack():Action? {
+   fun textAt(name:String,xMax:Float,yMin:Float,vararg words:String):Action? {
+    val hit=lines.firstOrNull{line->
+     val t=line.first.replace(" ","")
+     words.any{t==it || t.contains(it)} && line.second<=width*xMax && line.third>=height*yMin}
+     ?:return null
+    return limited("back_$name",2){at(name,hit.second,hit.third)}
+   }
+   textAt("返回大廳",1f,.85f,"大廳","大厅")?.let{return it}
+   textAt("返回",.35f,.85f,"返回")?.let{return it}
+   val close=lines.firstOrNull{line->
+    val t=line.first.replace(" ","")
+    (t=="關閉" || t=="关闭") && line.second>=width*.60f && line.third<=height*.30f}
+   if(close!=null)limited("back_close",2){at("關閉頁面",close.second,close.third)}?.let{return it}
    DailyTemplates.closeTop()?.let{return at("關閉頁面",it.x,it.y)}
    DailyTemplates.homeBottom()?.let{return at("返回大廳",it.x,it.y)}
-   val back=lines.firstOrNull{it.first.replace(" ","").contains("返回") &&
-    it.second<width*.35f && it.third>height*.85f}
-   if(back!=null)return at("返回",back.second,back.third)
    return null
   }
   if(s.id=="login"){

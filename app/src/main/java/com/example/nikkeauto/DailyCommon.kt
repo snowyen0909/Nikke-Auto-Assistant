@@ -26,9 +26,10 @@ object DailyCommon {
    has("前哨基地","OUTPOST") && has("方舟","ARK","作戰出擊","作战出击") &&
    has("妮姬","NIKKE","好友","付費商店","付费商店")
   fun closeIcon():Tap? {
-   // Icon-only X: template match first, then an exact single-glyph OCR element.
-   DailyTemplates.closeTop()?.let{return Tap("X",it.x,it.y)}
-   return match(.72f,.98f,.045f,.26f,"X","×","✕","關閉","关闭")
+   // Text first: a readable "關閉" or an exact X glyph; the image template
+   // is only for the icon-only X that OCR cannot read.
+   match(.72f,.98f,.045f,.26f,"關閉","关闭","X","×","✕")?.let{return it}
+   return DailyTemplates.closeTop()?.let{Tap("X",it.x,it.y)}
   }
   fun rewardPrompt():Tap?{
    if(!has("REWARD","獲得獎勵","获得奖励"))return null
