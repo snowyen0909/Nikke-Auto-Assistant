@@ -6,6 +6,9 @@ object Settings {
  @Volatile var map=true
  @Volatile var patrol=false
  @Volatile var running=false
+ // Template calibration: capture one game frame at this time (elapsedRealtime), 0 = none.
+ @Volatile var snapshotAt=0L
+ @Volatile var snapshotReady=false
  @Volatile var paused=false
  @Volatile var dailyMode=false
  @Volatile var dailyLogin=true

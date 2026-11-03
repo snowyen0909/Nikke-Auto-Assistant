@@ -1,6 +1,8 @@
 package com.example.nikkeauto
 
 import android.app.Activity
+import android.content.Intent
+import android.os.SystemClock
 import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.Typeface
@@ -153,6 +155,22 @@ object ModernUi {
   add(routineBody,button(a,"停止日常任務",0xFF813B4F.toInt()){
    DailyRoutine.stop();Settings.dailyMode=false;dailyState.text=DailyRoutine.status
   },7)
+  // Template calibration with this phone's own screen.
+  val calib=card(a,"⌖ 模板校正（用這支手機的畫面）")
+  add(calib,text(a,"1. 先暫停自動化\n2. 按「5 秒後擷取」，切到要框選的遊戲畫面\n3. 回到這裡按「框選模板」，框住按鈕並儲存",12f,false,MUTED),10)
+  add(calib,button(a,"5 秒後擷取遊戲畫面",TILE){
+   if(!Settings.running){
+    Toast.makeText(a,"請先到總控台啟動螢幕擷取",Toast.LENGTH_LONG).show()
+   }else{
+    Settings.snapshotReady=false
+    Settings.snapshotAt=SystemClock.elapsedRealtime()+5000L
+    Toast.makeText(a,"5 秒後擷取，請切到遊戲畫面",Toast.LENGTH_LONG).show()
+   }
+  },12)
+  add(calib,button(a,"框選模板",MINT){
+   a.startActivity(Intent(a,TemplateCropActivity::class.java))
+  },7)
+  add(routineBody,calib,18)
 
   val nav=BottomNavigationView(a).apply{
    setBackgroundColor(PANEL)

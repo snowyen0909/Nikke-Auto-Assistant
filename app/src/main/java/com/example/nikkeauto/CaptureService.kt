@@ -116,7 +116,7 @@ class CaptureService : Service() {
   handler.post(object:Runnable {
    override fun run() {
     if (!Settings.running) {stopSelf();return}
-    if(!Settings.paused)capture(w,h)
+    if(!Settings.paused || Settings.snapshotAt>0L)capture(w,h)
     handler.postDelayed(this,700)
    }
   })
@@ -143,6 +143,22 @@ class CaptureService : Service() {
    raw.recycle()
   } catch(e:Exception) {status("擷取影像失敗: ${e.javaClass.simpleName}");return}
   finally {image.close()}
+  // Template calibration snapshot: keep one full frame of the game for cropping.
+  val snapAt=Settings.snapshotAt
+  if(snapAt>0L && SystemClock.elapsedRealtime()>=snapAt){
+   Settings.snapshotAt=0L
+   val copy=bitmap.copy(Bitmap.Config.ARGB_8888,false)
+   visionExecutor.execute{
+    try{
+     java.io.File(filesDir,"template_snapshot.png").outputStream().use{
+      copy.compress(Bitmap.CompressFormat.PNG,100,it)}
+     Settings.snapshotReady=true
+     status("已擷取遊戲畫面，請回到 App 按「框選模板」")
+    }catch(e:Exception){status("擷取畫面存檔失敗: ${e.javaClass.simpleName}")}
+    finally{copy.recycle()}
+   }
+  }
+  if(Settings.paused){bitmap.recycle();return}
   busy = true
   captureStartedAt=SystemClock.elapsedRealtime()
   recognizer.process(InputImage.fromBitmap(bitmap,0))
@@ -171,7 +187,7 @@ class CaptureService : Service() {
        return@addOnSuccessListener
       }
       // Template matching for icon-only buttons needs the current frame.
-      DailyTemplates.frame=bitmap;DailyTemplates.assets=assets
+      DailyTemplates.frame=bitmap;DailyTemplates.assets=assets;DailyTemplates.filesDir=filesDir
       val action=try{DailyRoutine.decide(dailyText,w,h)}finally{DailyTemplates.frame=null}
       if(action!=null && Settings.running && !Settings.paused){
        val sent=Settings.tap?.click(action.x,action.y) ?: false
@@ -197,7 +213,7 @@ class CaptureService : Service() {
        Settings.status="進入遊戲：等待畫面穩定"
        return@addOnSuccessListener
       }
-      DailyTemplates.frame=bitmap;DailyTemplates.assets=assets
+      DailyTemplates.frame=bitmap;DailyTemplates.assets=assets;DailyTemplates.filesDir=filesDir
       val loginFrame=DailyCommon.Frame(dailyText,w,h)
       val entry=try{DailyCommon.enter(loginFrame)}
        finally{DailyTemplates.frame=null}

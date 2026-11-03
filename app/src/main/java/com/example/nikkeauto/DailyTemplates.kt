@@ -9,6 +9,7 @@ import org.opencv.core.Core
 import org.opencv.core.Mat
 import org.opencv.core.Size
 import org.opencv.imgproc.Imgproc
+import java.io.File
 
 /**
  * Icon-only controls (close X, home, mailbox, quick-battle switch) have no text
@@ -22,16 +23,33 @@ object DailyTemplates {
  /** Set by CaptureService for the duration of one DailyRoutine.decide() call. */
  @Volatile var frame:Bitmap?=null
  @Volatile var assets:AssetManager?=null
+ /** App files dir; user-cropped templates live in filesDir/templates/<name>.png. */
+ @Volatile var filesDir:File?=null
  private const val REF_WIDTH=750.0
- private val scales=doubleArrayOf(.75,.85,.95,1.05,1.2,1.35)
+ private val scales=doubleArrayOf(.75,.85,.95,1.0,1.05,1.2,1.35)
  private val ready by lazy {runCatching{OpenCVLoader.initLocal()}.getOrDefault(false)}
  private val cache=HashMap<String,Mat>()
+ /** Width of the screenshot each template was cropped from. */
+ private val refWidth=HashMap<String,Double>()
+
+ fun userTemplate(dir:File,name:String)=File(dir,"templates/$name.png")
+ fun userTemplateWidth(dir:File,name:String)=File(dir,"templates/$name.w")
+ /** Drop a cached template after the user saves or resets it. */
+ @Synchronized fun invalidate(name:String){cache.remove(name)?.release();refWidth.remove(name)}
 
  private fun template(name:String):Mat? {
   cache[name]?.let{return it}
-  val am=assets?:return null
-  val bmp=runCatching{am.open("templates/daily/$name.jpg").use{BitmapFactory.decodeStream(it)}}
-   .getOrNull()?:return null
+  // A template cropped on this phone wins over the bundled tutorial crop.
+  val user=filesDir?.let{userTemplate(it,name)}?.takeIf{it.exists()}
+  val bmp=if(user!=null){
+   refWidth[name]=runCatching{userTemplateWidth(user.parentFile!!.parentFile!!,name).readText().trim().toDouble()}
+    .getOrDefault(1080.0)
+   BitmapFactory.decodeFile(user.path)
+  }else{
+   refWidth[name]=REF_WIDTH
+   val am=assets?:return null
+   runCatching{am.open("templates/daily/$name.jpg").use{BitmapFactory.decodeStream(it)}}.getOrNull()
+  }?:return null
   val rgba=Mat();val gray=Mat()
   try{
    Utils.bitmapToMat(bmp,rgba)
@@ -59,7 +77,7 @@ object DailyTemplates {
    Utils.bitmapToMat(roi,rgba)
    if(roi!==b)roi.recycle()
    Imgproc.cvtColor(rgba,gray,Imgproc.COLOR_RGBA2GRAY)
-   val base=b.width/REF_WIDTH
+   val base=b.width/(refWidth[name]?:REF_WIDTH)
    for(k in scales){
     val tw=(tpl.cols()*base*k).toInt();val th=(tpl.rows()*base*k).toInt()
     if(tw<10 || th<10 || tw>=gray.cols() || th>=gray.rows())continue
