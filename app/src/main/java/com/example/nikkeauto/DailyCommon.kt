@@ -44,7 +44,9 @@ object DailyCommon {
  fun popup(frame:Frame):Tap? {
   val isEvent=frame.has("第三次地面收復戰","活動公告","活动公告",
    "系統公告","系统公告","回歸簽到","回归签到","回歸任務","回归任务",
-   "簽到獎勵","签到奖励","版本更新公告","NEWCHAPTER","TRAILMARKER")
+   "簽到獎勵","签到奖励","版本更新公告")
+  // TRAIL MARKER / NEW CHAPTER are permanent lobby widgets, not popups: they
+  // made every lobby frame look like an announcement.
   val volt=frame.has("伏特的每日探索")
   if(volt) {
    // Claim first, then close on the next frame.
