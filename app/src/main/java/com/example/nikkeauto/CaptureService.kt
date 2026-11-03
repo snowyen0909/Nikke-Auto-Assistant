@@ -30,6 +30,9 @@ class CaptureService : Service() {
  private var lastTap = 0L
  // Daily actions require a fresh settled frame after the prior gesture.
  private var dailyNextAllowedAt = 0L
+ private var loginNextAllowedAt = 0L
+ private var loginTapName = ""
+ private var loginTapCount = 0
  private var lastTarget = ""
  private var stable = 0
  private var noTargetSince = 0L
@@ -181,6 +184,35 @@ class CaptureService : Service() {
       return@addOnSuccessListener
      }
      if(Settings.dailyMode && !DailyRoutine.active)Settings.dailyMode=false
+     // Entering the game (title screen + start-up announcements) is a default
+     // function in every mode, not only inside the daily routine. It only acts
+     // on the title text or a recognised announcement with a close icon.
+     if(Settings.login && Settings.running && !Settings.paused){
+      val nowLogin=SystemClock.elapsedRealtime()
+      if(nowLogin<loginNextAllowedAt){
+       Settings.status="進入遊戲：等待畫面穩定"
+       return@addOnSuccessListener
+      }
+      DailyTemplates.frame=bitmap;DailyTemplates.assets=assets
+      val entry=try{DailyCommon.enter(DailyCommon.Frame(dailyText,w,h))}
+       finally{DailyTemplates.frame=null}
+      if(entry==null){loginTapName="";loginTapCount=0}
+      else if(entry.x in (w*.03f)..(w*.97f) && entry.y in (h*.035f)..(h*.97f)){
+       loginTapCount=if(entry.name==loginTapName)loginTapCount+1 else 1
+       loginTapName=entry.name
+       // A popup that does not close after several taps must not be tapped forever.
+       if(loginTapCount<=4){
+        val sent=Settings.tap?.click(entry.x,entry.y) ?: false
+        if(sent){
+         Settings.taps++
+         loginNextAllowedAt=SystemClock.elapsedRealtime()+3000L
+         Settings.status="進入遊戲：${entry.name}"
+        } else Settings.status="進入遊戲：觸控未成功送出，請檢查無障礙服務"
+        return@addOnSuccessListener
+       }
+       Settings.status="進入遊戲：${entry.name} 多次點擊無效，已略過，請手動確認"
+      }
+     }
      // OCR often merges "HIDE AUTO LOG SKIP" into ONE line. Its center is
      // near AUTO, not SKIP. Never tap the center of a merged toolbar line.
      val skip=lines.firstOrNull {

@@ -54,6 +54,7 @@ OCR: ${Settings.lastRecognized.take(95)}""".trimIndent()
    root.addView(sw)
   }
   root.addView(TextView(this).apply{text="NIKKE Auto Assistant";textSize=24f})
+  toggle("自動進入遊戲 / 關閉公告彈窗",Settings.login){Settings.login=it}
   toggle("自動跳過劇情 / 結算 / 升級彈窗",Settings.skip){Settings.skip=it}
   toggle("自動戰鬥確認",Settings.battle){Settings.battle=it}
   toggle("地圖尋敵（紅圈 / 驚嘆號 / Boss）",Settings.map){Settings.map=it}

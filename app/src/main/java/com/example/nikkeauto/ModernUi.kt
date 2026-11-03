@@ -111,7 +111,8 @@ object ModernUi {
   // Tab 2: map/battle controls from reference page 2.
   heading(a,mapBody,"MAP  •  AUTOMATION","推圖與戰鬥","可單獨開關的畫面辨識功能")
   val mapCard=card(a,"◎ 大地圖與戰鬥")
-  add(mapCard,option(a,"劇情與結算","SKIP / 結算推進",Settings.skip){Settings.skip=it},8)
+  add(mapCard,option(a,"進入遊戲與公告","TOUCH TO CONTINUE、關閉活動公告，預設開啟",Settings.login){Settings.login=it},8)
+  add(mapCard,option(a,"劇情與結算","SKIP / 結算推進",Settings.skip){Settings.skip=it})
   add(mapCard,option(a,"戰鬥準備","橘色快速戰鬥優先",Settings.battle){Settings.battle=it})
   add(mapCard,option(a,"地圖自動尋敵","藍色菱形、紅圈與 Boss",Settings.map){Settings.map=it})
   add(mapCard,option(a,"地圖巡弋","實驗性功能，預設關閉",Settings.patrol){Settings.patrol=it})

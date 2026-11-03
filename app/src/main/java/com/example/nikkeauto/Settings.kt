@@ -1,5 +1,6 @@
 package com.example.nikkeauto
 object Settings {
+ @Volatile var login=true
  @Volatile var skip=true
  @Volatile var battle=true
  @Volatile var map=true
