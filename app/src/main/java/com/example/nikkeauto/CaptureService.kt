@@ -33,6 +33,9 @@ class CaptureService : Service() {
  private var loginNextAllowedAt = 0L
  private var loginTapName = ""
  private var loginTapCount = 0
+ // The enter-game task only runs until the game has been entered once per start.
+ private var loginDone = false
+ private var loginStartedAt = 0L
  private var lastTarget = ""
  private var stable = 0
  private var noTargetSince = 0L
@@ -88,6 +91,7 @@ class CaptureService : Service() {
  override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
   if(intent?.action==ACTION_PAUSE){setPaused(true);return START_NOT_STICKY}
   if(intent?.action==ACTION_RESUME){setPaused(false);return START_NOT_STICKY}
+  loginDone=false;loginStartedAt=SystemClock.elapsedRealtime();loginTapName="";loginTapCount=0
   val mgr = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
   mgr.createNotificationChannel(NotificationChannel(notificationChannel, "螢幕辨識狀態", NotificationManager.IMPORTANCE_LOW))
   startForeground(1, notification("正在初始化擷取"), ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION)
@@ -187,15 +191,25 @@ class CaptureService : Service() {
      // Entering the game (title screen + start-up announcements) is a default
      // function in every mode, not only inside the daily routine. It only acts
      // on the title text or a recognised announcement with a close icon.
-     if(Settings.login && Settings.running && !Settings.paused){
+     if(Settings.login && !loginDone && Settings.running && !Settings.paused){
       val nowLogin=SystemClock.elapsedRealtime()
       if(nowLogin<loginNextAllowedAt){
        Settings.status="進入遊戲：等待畫面穩定"
        return@addOnSuccessListener
       }
       DailyTemplates.frame=bitmap;DailyTemplates.assets=assets
-      val entry=try{DailyCommon.enter(DailyCommon.Frame(dailyText,w,h))}
+      val loginFrame=DailyCommon.Frame(dailyText,w,h)
+      val entry=try{DailyCommon.enter(loginFrame)}
        finally{DailyTemplates.frame=null}
+      // Finished: lobby reached with no popup left, or already in a stage /
+      // the field map, or 10 minutes passed. Stop the task for this run so it
+      // never taps anything else afterwards.
+      if(entry==null && (loginFrame.home() || all.contains("野外") ||
+         all.contains("CURRENTAREA") || all.contains("STAGE") ||
+         nowLogin-loginStartedAt>600000L)){
+       loginDone=true
+       Settings.status="進入遊戲：已完成，停止此項任務"
+      }
       if(entry==null){loginTapName="";loginTapCount=0}
       else if(entry.x in (w*.03f)..(w*.97f) && entry.y in (h*.035f)..(h*.97f)){
        loginTapCount=if(entry.name==loginTapName)loginTapCount+1 else 1
@@ -272,9 +286,14 @@ class CaptureService : Service() {
      val resultScreen=hasResult || popup
      // OCR sometimes fails on the small 野外 text; combine scene context with
      // minimap recognition, while still excluding battles, story and results.
-     val detectedMinimap=if(Settings.map && !battleScreen && !storyScreen && !resultScreen)
+     // Lobby / recruitment pages are never the field map. The lobby's campaign
+     // card shows the difficulty "NORMAL", which used to switch map search on in
+     // the lobby, where it tapped the glowing recruitment button.
+     val menuScreen=DailyCommon.Frame(lines,w,h).home() ||
+      all.contains("隊員招募") || all.contains("队员招募") || all.contains("PICKUP")
+     val detectedMinimap=if(Settings.map && !battleScreen && !storyScreen && !resultScreen && !menuScreen)
       MapDetector.expandedMinimap(bitmap) else null
-     val outdoorMap=!battleScreen && !storyScreen && !resultScreen &&
+     val outdoorMap=!battleScreen && !storyScreen && !resultScreen && !menuScreen &&
       (all.contains("野外") || all.contains("CURRENTAREA") ||
        all.contains("NORMAL") || detectedMinimap!=null)
      val enlargedMap=detectedMinimap
