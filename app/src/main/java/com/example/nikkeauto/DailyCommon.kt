@@ -14,7 +14,9 @@ object DailyCommon {
   fun match(x0:Float,x1:Float,y0:Float,y1:Float,vararg words:String):Tap? {
    val keys=words.map{it.replace(" ","").uppercase()}
    val item=items.filter{it.second/w in x0..x1 && it.third/h in y0..y1}
-    .filter{label->keys.any {label.first==it || label.first.contains(it)}}
+    // Single-character keys (X, x-like glyphs) must match exactly; otherwise
+    // words such as MAX / NEXT / EXP would be mistaken for a close icon.
+    .filter{label->keys.any {if(it.length==1)label.first==it else label.first==it || label.first.contains(it)}}
     .sortedWith(compareBy<Triple<String,Float,Float>> {
      if(keys.contains(it.first))0 else 1
     }.thenBy{it.first.length}).firstOrNull() ?:return null
@@ -24,7 +26,8 @@ object DailyCommon {
    has("前哨基地","OUTPOST") && has("方舟","ARK","作戰出擊","作战出击") &&
    has("妮姬","NIKKE","好友","付費商店","付费商店")
   fun closeIcon():Tap? {
-   // Requires the actual X-like OCR element near the top-right area.
+   // Icon-only X: template match first, then an exact single-glyph OCR element.
+   DailyTemplates.closeTop()?.let{return Tap("X",it.x,it.y)}
    return match(.72f,.98f,.045f,.26f,"X","×","✕","關閉","关闭")
   }
   fun rewardPrompt():Tap?{

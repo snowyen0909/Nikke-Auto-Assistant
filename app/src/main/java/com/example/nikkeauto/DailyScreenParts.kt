@@ -14,6 +14,11 @@ object DailyScreenParts {
   val labels=lines.map{Label(it.first.replace(" ","").uppercase(),it.second,it.third)}
   val all=labels.joinToString(""){it.text}
   fun has(vararg words:String)=words.any{all.contains(it.replace(" ","").uppercase())}
+  /** True only when a whole OCR element equals one of the words (no substring hits). */
+  fun hasExact(vararg words:String)=words.any{w->labels.any{it.text==w.replace(" ","").uppercase()}}
+  fun labelExact(xMin:Float,xMax:Float,yMin:Float,yMax:Float,vararg words:String):Label?=
+   labels.firstOrNull{it.x/w in xMin..xMax && it.y/h in yMin..yMax &&
+    words.any{word->it.text==word.replace(" ","").uppercase()}}
   fun label(xMin:Float,xMax:Float,yMin:Float,yMax:Float,vararg words:String):Label?=
    labels.firstOrNull{it.x/w in xMin..xMax && it.y/h in yMin..yMax &&
     words.any{word->it.text.contains(word.replace(" ","").uppercase())}}
@@ -31,7 +36,15 @@ object DailyScreenParts {
   fun topRightClose():Tap? {
    if(!has("郵箱","邮箱","防禦前哨基地","防御前哨基地",
      "好友目錄","好友目录","派遣公告欄","派遣公告栏"))return null
-   return tapLabel("關閉彈窗",.72f,.98f,.04f,.24f,"X","×","✕","關閉","关闭")
+   DailyTemplates.closeTop()?.let{return Tap("關閉彈窗",it.x,it.y)}
+   val exact=labelExact(.72f,.98f,.04f,.24f,"X","×","✕")
+   if(exact!=null)return Tap("關閉彈窗",exact.x,exact.y)
+   return tapLabel("關閉彈窗",.72f,.98f,.04f,.24f,"關閉","关闭")
+  }
+  /** Bottom-bar home icon (template) with an OCR fallback. */
+  fun homeTap():Tap? {
+   DailyTemplates.homeBottom()?.let{return Tap("返回主大廳",it.x,it.y)}
+   return tapLabel("返回主大廳",.02f,.53f,.88f,.99f,"大廳","主頁","主页")
   }
  }
 
@@ -45,8 +58,11 @@ object DailyScreenParts {
  private var freeWipeAttempted=false
  private var rewardSeen=false
  private var arenaResultHandled=false
- fun reset(){current="";phase=0;arenaBattles=0;freeWipeAttempted=false;rewardSeen=false;arenaResultHandled=false}
- private fun enter(id:String){if(current!=id){current=id;phase=0;rewardSeen=false}}
+ private var claimTaps=0
+ private var switchTaps=0
+ fun reset(){current="";phase=0;arenaBattles=0;freeWipeAttempted=false;rewardSeen=false
+  arenaResultHandled=false;claimTaps=0;switchTaps=0}
+ private fun enter(id:String){if(current!=id){current=id;phase=0;rewardSeen=false;claimTaps=0;switchTaps=0}}
  fun decide(id:String,frame:Frame):Tap? {
   enter(id)
   return when(id){
@@ -65,21 +81,29 @@ object DailyScreenParts {
  private fun mail(f:Frame):Tap? {
   if(f.reward()) {phase=2;rewardSeen=true;return f.rewardTap()}
   if(f.has("郵箱","邮箱","郵件","邮件")){
-   // Mail bottom-right bulk claim; never click the trash can.
+   // Mail bottom-right bulk claim; never click the trash can. At most two
+   // attempts: with an empty mailbox the button stays on screen forever.
    val claim=f.tapLabel("信箱全部領取",.53f,.95f,.77f,.94f,"全部領取","全部领取")
-   if(claim!=null && !f.has("已領取","已领取") && phase<2){phase=1;return claim}
-   if(phase>=1 || f.has("已領取","已领取")){
+   if(claim!=null && !f.has("已領取","已领取") && phase<2 && claimTaps<2){
+    phase=1;claimTaps++;return claim
+   }
+   if(phase>=1 || claimTaps>=2 || f.has("已領取","已领取")){
     phase=3;return f.topRightClose()
    }
    return null
   }
   if(f.home()){
    if(phase>=2){phase=3;return null}
+   val icon=DailyTemplates.mailbox()
+   if(icon!=null)return Tap("開啟信箱",icon.x,icon.y)
    return f.tap("開啟信箱",.87f,.035f)
   }
   return null
  }
  private fun arena(f:Frame):Tap? {
+  // Both free battles are done: only ever head back to the lobby from here.
+  // Never fall through to the opponent list, which would start a third battle.
+  if(phase>=3 && !f.reward())return if(f.home())null else f.homeTap()
   if(f.has("DEFEAT","VICTORY") && f.has("ROOKIEARENA","ROOKIE","ARENA")){
    if(!arenaResultHandled){arenaBattles++;arenaResultHandled=true}
    phase=2
@@ -91,8 +115,7 @@ object DailyScreenParts {
    arenaResultHandled=false
    if(arenaBattles>=2){
     phase=3
-    // Prefer an explicitly recognized Home control; otherwise stop.
-    return f.tapLabel("返回主大廳",.02f,.53f,.88f,.99f,"大廳","主頁","主页")
+    return f.homeTap()
    }
    phase=0
    // Refresh the opponent directory before battle #2.
@@ -101,12 +124,25 @@ object DailyScreenParts {
   }
   if(f.has("新人競技場","ROOKIEARENA") && f.has("快速戰鬥","快速战斗")
      && f.has("進入戰鬥","进入战斗")){
-   // The PDF requires ON before combat. Avoid false positive 'ON' from
-   // other OCR text by using image switch + geometry in future.
-   // Never accept a generic 'ON' substring anywhere on the screen.
-   // Switch state without a localized OCR label needs image confirmation.
-   val switchOn=f.label(.10f,.45f,.78f,.94f,"ON")
-   if(switchOn==null || f.label(.10f,.45f,.78f,.94f,"OFF")!=null)return null
+   // Quick-battle switch: image match first (ON/OFF crops), exact OCR as backup.
+   val sw=DailyTemplates.fastBattle()
+   val isOn:Boolean
+   var switchTap:Tap?=null
+   if(sw!=null){
+    isOn=sw.first
+    if(!isOn)switchTap=Tap("開啟快速戰鬥",sw.second.x,sw.second.y)
+   }else{
+    val on=f.labelExact(.10f,.45f,.78f,.94f,"ON")
+    val off=f.labelExact(.10f,.45f,.78f,.94f,"OFF")
+    if(on==null && off==null)return null
+    isOn=off==null
+    if(!isOn)switchTap=Tap("開啟快速戰鬥",off!!.x,off.y)
+   }
+   if(!isOn){
+    if(switchTaps>=3)return null
+    switchTaps++
+    return switchTap
+   }
    phase=1
    return f.tapLabel("開始快速戰鬥",.46f,.94f,.73f,.94f,
     "進入戰鬥","进入战斗")
@@ -132,19 +168,21 @@ object DailyScreenParts {
  private fun idle(f:Frame):Tap? {
   // Prioritize reward overlay across both claim and free wipe.
   if(f.reward()){phase=if(freeWipeAttempted)4 else 2;rewardSeen=true;return f.rewardTap()}
+  // A paid wipe shows a gem price. Compare whole OCR elements: a bare substring
+  // test for "50" also matched ordinary numbers such as 1,250 or timers.
+  val gemPrice=f.hasExact("50","X50","×50")
   if(f.has("今日剩餘次數","今日剩余次数") &&
-     f.has("50") && f.has("進行殲滅","进行歼灭")){
+     gemPrice && f.has("進行殲滅","进行歼灭")){
    // Subsequent wipe requires gems; explicitly cancel, never buy.
    phase=4
    return f.tapLabel("取消付費殲滅",.05f,.43f,.74f,.89f,"取消")
   }
   if(f.has("進行殲滅","进行歼灭") && f.has("取消") &&
       !freeWipeAttempted){
-   // Only use the FREE daily wipe. If a gem price appears, the guard above
-   // handles it first; unknown prices require manual review.
-   // Positive confirmation of first-free status is mandatory.
+   // Only use the FREE daily wipe. Positive confirmation of first-free status
+   // is mandatory; any gem price means the guard above handles it.
    if(!f.has("每日首次免費","每日首次免费","首次免費","首次免费") ||
-      f.has("50","鑽石","钻石"))return null
+      gemPrice || f.has("鑽石","钻石"))return null
    freeWipeAttempted=true;phase=3
    return f.tapLabel("執行免費殲滅",.42f,.96f,.75f,.91f,
     "進行殲滅","进行歼灭")

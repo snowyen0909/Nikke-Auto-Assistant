@@ -163,7 +163,9 @@ class CaptureService : Service() {
        Settings.status="日常操作等待畫面穩定"
        return@addOnSuccessListener
       }
-      val action=DailyRoutine.decide(dailyText,w,h)
+      // Template matching for icon-only buttons needs the current frame.
+      DailyTemplates.frame=bitmap;DailyTemplates.assets=assets
+      val action=try{DailyRoutine.decide(dailyText,w,h)}finally{DailyTemplates.frame=null}
       if(action!=null && Settings.running && !Settings.paused){
        val sent=Settings.tap?.click(action.x,action.y) ?: false
        if(sent){

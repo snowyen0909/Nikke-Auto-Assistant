@@ -32,6 +32,11 @@ object DailyRoutine {
  private var lastX=-1f
  private var lastY=-1f
  private var stepStart=0L
+ // Per-step bookkeeping for modules without DailyScreenParts.
+ private var doneFlag=false
+ private val budgets=mutableMapOf<String,Int>()
+ private val stableCounts=mutableMapOf<String,Int>()
+ private fun resetStep(){doneFlag=false;budgets.clear();stableCounts.clear()}
 
  @Synchronized fun isEnabled(id:String):Boolean=when(id){
   "login"->Settings.dailyLogin
@@ -61,7 +66,7 @@ object DailyRoutine {
  @Synchronized fun state(id:String):String=states[id]?:"待執行"
  @Synchronized fun start(){
   active=true;paused=false;index=0;completed=0;stage=0
-  states.clear();sameAction="";sameCount=0;lastTap=0L
+  states.clear();sameAction="";sameCount=0;lastTap=0L;resetStep()
   DailyScreenParts.reset()
   DailyCommon.reset()
   lastX=-1f;lastY=-1f;stepStart=SystemClock.elapsedRealtime()
@@ -83,7 +88,7 @@ object DailyRoutine {
   if(index>=steps.size){active=false;status="日常流程已結束"}
  }
  @Synchronized private fun advance(){
-  completed++;index++;stage=0;lastTap=0L
+  completed++;index++;stage=0;lastTap=0L;resetStep()
   sameCount=0;sameAction="";lastX=-1f;lastY=-1f
   stepStart=SystemClock.elapsedRealtime()
   advanceDisabled()
@@ -95,7 +100,8 @@ object DailyRoutine {
   if(!active || paused || index>=steps.size)return null
   val now=SystemClock.elapsedRealtime()
   if(now-lastTap<1700L)return null
-  if(now-stepStart>120000L){paused=true;status="步驟逾時，已暫停：${steps[index].title}";return null}
+  val limit=if(steps[index].id=="arena" || steps[index].id=="upgrade")300000L else 150000L
+  if(now-stepStart>limit){paused=true;status="步驟逾時，已暫停：${steps[index].title}";return null}
   val s=steps[index]
   states[s.id]="執行中 · 階段 ${stage+1}"
   val all=lines.joinToString(" "){it.first}.replace(" ","").uppercase()
@@ -139,12 +145,38 @@ object DailyRoutine {
    }?:return null
    return at("確認 REWARD 獎勵",button.second,button.third)
   }
-  fun home()=has("付費商店","前哨基地","作戰出擊","隊員招募") &&
-   has("方舟","商店","妮姬","好友")
   // Login and transient event notices use the same OCR-anchored component.
   val shared=DailyCommon.Frame(lines,width,height)
+  // Strict lobby test (outpost + ark + a lobby-only entry); the old loose test
+  // also matched the paid-shop page itself.
+  fun home()=shared.home()
+  /** Stable for [n] consecutive frames; resets as soon as the condition fails. */
+  fun stable(key:String,cond:Boolean,n:Int=2):Boolean {
+   if(!cond){stableCounts[key]=0;return false}
+   val c=(stableCounts[key]?:0)+1
+   stableCounts[key]=c
+   return c>=n
+  }
+  /** Run [act] at most [max] times per step; only successful taps use the budget. */
+  fun limited(key:String,max:Int,act:()->Action?):Action? {
+   if((budgets[key]?:0)>=max)return null
+   val a=act()?:return null
+   budgets[key]=(budgets[key]?:0)+1
+   return a
+  }
+  /** Way back to the lobby: dialog X, bottom home icon, then a text "返回". */
+  fun goBack():Action? {
+   DailyTemplates.closeTop()?.let{return at("關閉頁面",it.x,it.y)}
+   DailyTemplates.homeBottom()?.let{return at("返回大廳",it.x,it.y)}
+   val back=lines.firstOrNull{it.first.replace(" ","").contains("返回") &&
+    it.second<width*.35f && it.third>height*.85f}
+   if(back!=null)return at("返回",back.second,back.third)
+   return null
+  }
   if(s.id=="login"){
-   if(shared.home() && !shared.has("公告","簽到","签到","伏特的每日探索")){
+   // Event popups that cover the lobby are closed by the shared handler below;
+   // they must not block login completion (the lobby text is still readable).
+   if(shared.home() && DailyCommon.popup(shared)==null){
     states[s.id]="已完成";advance();return null
    }
    val entering=DailyCommon.enter(shared)
@@ -166,27 +198,36 @@ object DailyRoutine {
    status="${s.title}：等待已知畫面或人工確認"
    return null
   }
-  // The annotated PDFs demonstrate each screen; unexpected views are not tapped.
+  // Remaining modules: finish once the work is done AND the lobby is visible again.
+  if(doneFlag){
+   if(home()){states[s.id]="已完成";advance();return null}
+   goBack()?.let{return it}
+   status="${s.title}：已完成，找不到返回大廳按鈕，請手動返回大廳"
+   return null
+  }
   when(s.id){
-   "mail"->{
-    if(has("REWARD"))return reward()
-    if(has("郵箱","郵件") && has("全部領取","全部领取")){
-     return label("信箱全部領取","全部領取","全部领取")
-    }
-    if(has("郵箱","郵件") && has("已領取","已领取")){
-     states[s.id]="已完成";advance();return null
-    }
-    if(home())return tap("開啟郵箱",.79f,.035f)
-    status="信箱：未確認郵箱畫面，請手動返回主畫面"
-   }
    "dispatch"->{
     if(has("REWARD"))return reward()
-    if(has("派遣公告欄","派遣公告栏") && has("全部領取","全部领取"))
-     return label("派遣全部領取","全部領取","全部领取")
-    if(has("派遣公告欄","派遣公告栏") && has("全部派遣","全部派遣"))
-     return label("全部派遣","全部派遣")
-    if(has("派遣公告欄","派遣公告栏")){
-     status="派遣：已無可辨識操作，請確認後切換下一項";return null
+    val board=has("派遣公告欄","派遣公告栏")
+    // After "全部派遣" a confirm dialog has a blue "派遣" button.
+    if((budgets["d_send"]?:0)>0 && !board){
+     val confirm=lines.firstOrNull{line->
+      line.first.replace(" ","")=="派遣" &&
+       line.second in (width*.25f)..(width*.80f) &&
+       line.third in (height*.50f)..(height*.90f)}
+     if(confirm!=null)return limited("d_confirm",1){at("確認派遣",confirm.second,confirm.third)}
+    }
+    if(board){
+     // The buttons stay on screen (greyed) after use, so each is tried at most twice.
+     if(has("全部領取","全部领取")){
+      limited("d_claim",2){label("派遣全部領取","全部領取","全部领取")}?.let{return it}
+     }
+     if(has("全部派遣")){
+      limited("d_send",1){label("全部派遣","全部派遣")}?.let{return it}
+     }
+     if(stable("d_done",true,3)){doneFlag=true}
+     status="派遣：確認完成中"
+     return null
     }
     if(has("前哨基地","OUTPOST") && !home())
      return label("開啟派遣公告欄","派遣公告欄","派遣公告栏")
@@ -206,28 +247,54 @@ object DailyRoutine {
      if(!has("消耗資金","消耗资金") || !explicitZero || has("NT$","$33","$170","$490")){
       paused=true;status="商店：無法確定消耗為 0，已暫停";return null
      }
-     return label("確認 0 鑽石信用點購買","購買","购买")
+     val buy=label("確認 0 鑽石信用點購買","購買","购买")
+     if(buy!=null)budgets["shop_bought"]=1
+     return buy
     }
-    if(has("普通商店","百貨商店") && has("信用點","信用点") && has("100%SALE","FREE"))
-      return label("選擇免費信用點","信用點","信用点")
+    if(has("普通商店","百貨商店") && has("信用點","信用点")){
+     val freeItem=has("100%SALE","FREE")
+     val bought=(budgets["shop_bought"]?:0)>0
+     val soldOut=has("SOLDOUT","售罄")
+     // Done when the purchase went through, or nothing free is left to buy.
+     if(stable("shop_done",bought || soldOut || !freeItem,3)){doneFlag=true;return null}
+     if(freeItem && !bought)
+      return limited("shop_pick",2){label("選擇免費信用點","信用點","信用点")}
+     status="商店：確認完成中"
+     return null
+    }
     if(home())return label("進入一般商店","商店")
     status="商店：未確認免費 0 鑽石商品，禁止購買"
    }
    "gift"->{
     if(has("REWARD"))return reward()
-    if(has("每日免費禮包","每日免费礼包") && has("免費","免费"))
-      return label("領取每日免費禮包","免費","免费")
-    if(has("普通禮包","普通礼包") && has("每日"))
-      return label("切換每日禮包","每日")
+    val giftPage=has("普通禮包","普通礼包","每日免費禮包","每日免费礼包")
+    if(giftPage){
+     val claimed=(budgets["g_claim"]?:0)>0
+     // The title "每日免費禮包" itself contains 免費, so SOLD OUT is checked first.
+     if(has("SOLDOUT","售罄") || stable("g_done",claimed,2)){doneFlag=true;return null}
+     if(has("每日免費禮包","每日免费礼包") && has("免費","免费"))
+      limited("g_claim",2){label("領取每日免費禮包","免費","免费")}?.let{return it}
+     if(has("普通禮包","普通礼包") && has("每日"))
+      limited("g_tab",2){label("切換每日禮包","每日")}?.let{return it}
+    }
     if(has("STEPUPPACKAGE","限時禮包","STEPUP禮包"))
-      return tap("切換普通禮包",.18f,.20f)
+      return limited("g_normal",2){tap("切換普通禮包",.18f,.20f)}
     if(home())return label("開啟付費商店","付費商店","付费商店")
     status="免費禮包：找不到明確免費標記，不點擊任何付費項目"
    }
    "friends"->{
-    if(has("贈送結果","赠送结果"))return label("確認贈送結果","確認","确认")
-    if(has("好友目錄","好友目录") && has("贈送","赠送"))
-      return label("贈送好友點數","贈送","赠送")
+    if(has("贈送結果","赠送结果")){
+     val ok=limited("f_confirm",2){label("確認贈送結果","確認","确认")}
+     if(ok!=null){budgets["f_done"]=1;return ok}
+     return null
+    }
+    if(has("好友目錄","好友目录")){
+     if(has("贈送","赠送"))
+      limited("f_send",2){label("贈送好友點數","贈送","赠送")}?.let{return it}
+     // Confirmed, or the gift button is already used up: close the list.
+     if(stable("f_done",(budgets["f_done"]?:0)>0 || (budgets["f_send"]?:0)>=2,3)){doneFlag=true}
+     return null
+    }
     if(home())return label("開啟好友","好友")
     status="好友：等待好友目錄／贈送結果"
    }
@@ -235,7 +302,9 @@ object DailyRoutine {
     if(has("升級","升级") && has("升級材料","升级材料") && has("LV.2")){
      // One level only; no maxing out; optionally user can disable module.
      if(stage==0){stage=1;return tap("升級一級",.50f,.79f)}
-     status="升級：已嘗試一次，請確認再切換下一項"
+     // The level reset that refunds materials is not implemented yet.
+     status="升級：已升一級；等級重置尚未實作，請手動重置"
+     doneFlag=true
      return null
     }
     if(has("詳細資訊","详细信息") && has("LV") && has("戰力","战力"))
@@ -247,24 +316,6 @@ object DailyRoutine {
     }
     if(home())return label("進入妮姬", "妮姬")
     status="升級：畫面不確定，未消耗資源"
-   }
-   "arena"->{
-    if(has("DEFEAT","VICTORY","REWARD") && has("ROOKIE","ARENA")){
-     return label("競技場結果下一步","點擊進行下一步","点击进行下一步")
-       ?: tap("結算下一步",.50f,.85f)
-    }
-    if(has("新人競技場","ROOKIEARENA") && has("進入戰鬥","进入战斗")){
-     // Only enter if quick-battle is confirmed on; manual verification else.
-     if(has("快速戰鬥","快速战斗","ON"))return label("開始新人競技場","進入戰鬥","进入战斗")
-     paused=true;status="競技場：快速戰鬥未確認開啟，已暫停";return null
-    }
-    if(has("ROOKIEARENA","新人競技場") && has("進入戰鬥","进入战斗"))
-      return label("選擇第三位對手","進入戰鬥","进入战斗")
-    if(has("ARENA") && has("ROOKIE"))return label("進入新人競技場","ROOKIE")
-    if(has("競技場","ARENA"))return label("進入競技場","競技場","ARENA")
-    if(has("方舟"))return label("進入方舟","方舟")
-    if(home())return label("進入方舟","方舟")
-    status="競技場：等待 Rookie Arena 畫面，無法確認對手時不點擊"
    }
   }
   return null
